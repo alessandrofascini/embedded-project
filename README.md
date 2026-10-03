@@ -38,7 +38,7 @@ connected via the Nucleo's Arduino-style header:
 | `GND`  | Nucleo GND            | —   | Ground |
 | `POT`  | Potentiometer wiper   | **PA0** | `ADC1_IN0` |
 | `NTC`  | NTC divider output    | **PA1** | `ADC1_IN1` |
-| `LED`  | (driven from MCU)     | **PA5** | GPIO output, mode indicator |
+| `LED`  | (driven from MCU)     | **PA4** | GPIO output, mode indicator |
 | `NC`   | not connected         | —   | unused pad on the breakout |
 
 The Nucleo board's **onboard B1 button**:
@@ -62,7 +62,11 @@ The Nucleo board's **onboard B1 button**:
 - **EXTI13** (PC13 / B1): interrupt on falling edge (press pulls the line to
   GND). No internal pull configured (`GPIO_NOPULL`) because the Nucleo-64
   board already provides an external pull-up on B1.
-- **GPIO PA5**: push-pull output, used as a mode/status LED.
+- **GPIO PA4**: push-pull output, used as a mode/status LED
+  (`LED_EXT_Pin`/`LED_EXT_GPIO_Port`). Originally assigned to PA5, moved to
+  PA4 after discovering the Nucleo-64 Arduino header's silkscreen labels
+  (`A0`-`A5`) don't match the STM32's own `PA0`-`PA5` pin names — the
+  physical "A5" header pad maps to `PA6`, not `PA5`.
 
 ## Building and flashing
 
