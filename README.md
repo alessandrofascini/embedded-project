@@ -67,6 +67,12 @@ The Nucleo board's **onboard B1 button**:
   PA4 after discovering the Nucleo-64 Arduino header's silkscreen labels
   (`A0`-`A5`) don't match the STM32's own `PA0`-`PA5` pin names — the
   physical "A5" header pad maps to `PA6`, not `PA5`.
+- **USART2**: asynchronous mode, 115200 baud, 8 data bits, no parity, 1 stop
+  bit, no hardware flow control, on PA2 (`USART2_TX`) / PA3 (`USART2_RX`) —
+  the ST-LINK Virtual COM Port. `USART2_IRQn` is enabled (handled via
+  `HAL_UART_IRQHandler`) so RX-driven input is available once the CLI is
+  implemented; for now the firmware only transmits, via `printf` routed
+  through `__io_putchar` → `HAL_UART_Transmit`.
 
 ## Building and flashing
 
