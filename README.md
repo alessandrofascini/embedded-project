@@ -15,7 +15,7 @@ between the two modes.
 
 - [Hardware](#hardware)
 - [Building and flashing](#building-and-flashing)
-- [Running tests](#running-tests) (TBD)
+- [Running tests](#running-tests)
 - [Operating modes](#operating-modes) (TBD)
 - [CLI commands](#cli-commands) (TBD)
 - [FSM design](#fsm-design) (TBD)
@@ -91,9 +91,39 @@ pio check -e release
 
 ## Running tests
 
-_(TBD — no unit tests exist yet. Pure-logic modules (filters, temperature
-conversion) will be unit tested natively with Unity, decoupled from the
-STM32 HAL so they run on the host without hardware, via `pio test -e tests`.)_
+Pure-logic modules (e.g. the temperature moving-average filter, float
+formatting) are unit tested natively with [Unity](http://www.throwtheswitch.org/unity),
+decoupled from the STM32 HAL so they run on the host without hardware.
+
+```sh
+pio test -e tests
+```
+
+Run a single test suite (by its folder name under `test/`):
+
+```sh
+pio test -e tests -f test_float_format
+```
+
+> **Note:** the native `tests` environment requires a host compiler that
+> supports `-std=gnu23` (**GCC 14+**). On Ubuntu 22.04 the default `gcc` is
+> too old (11.x; even `gcc-12`/`gcc-13` only support the pre-standardization
+> `-std=gnu2x` alias). If `pio test` fails with
+> `unrecognized command-line option '-std=gnu23'`, install GCC 14:
+> ```sh
+> sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+> sudo apt-get update
+> sudo apt-get install -y gcc-14 g++-14
+> ```
+> PlatformIO's native platform always resolves the generic `gcc`/`g++` names
+> from `PATH` (it has no `CC`/`CXX` override hook), so a `.toolchain-tests/`
+> directory in the repo root holds `gcc`/`g++` symlinks pointing at
+> `gcc-14`/`g++-14`. Prepend it to `PATH` before running tests:
+> ```sh
+> PATH="$(pwd)/.toolchain-tests:$PATH" pio test -e tests
+> ```
+> (or add that directory to your shell's `PATH` permanently, e.g. in
+> `~/.bashrc`, so plain `pio test` picks it up automatically.)
 
 ## Operating modes
 
