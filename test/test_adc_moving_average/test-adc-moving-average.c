@@ -102,9 +102,33 @@ void testAdcMovingAverageAddSample(void) {
     TEST_ASSERT_EQUAL_INT(0, SUT.count);
 }
 
+void testAdcMovingAverageGet(void) {
+    struct AdcMovingAverage SUT;
+
+    uint16_t buffer_a[4];
+    adc_moving_average_init(&SUT, buffer_a, 4);
+    TEST_ASSERT_FLOAT_IS_NAN(adc_moving_average_get(&SUT));
+
+    uint16_t buffer_b[4];
+    adc_moving_average_init(&SUT, buffer_b, 4);
+    adc_moving_average_add_sample(&SUT, 1);
+    adc_moving_average_add_sample(&SUT, 2);
+    adc_moving_average_add_sample(&SUT, 3);
+    TEST_ASSERT_EQUAL_FLOAT(2.0, adc_moving_average_get(&SUT));
+
+    adc_moving_average_add_sample(&SUT, 4);
+    TEST_ASSERT_EQUAL_FLOAT(2.5, adc_moving_average_get(&SUT));
+
+    adc_moving_average_add_sample(&SUT, 5);
+    TEST_ASSERT_EQUAL_FLOAT(3.5, adc_moving_average_get(&SUT));
+
+    TEST_ASSERT_FLOAT_IS_NAN(adc_moving_average_get(NULL));
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(testAdcMovingAverageInit);
     RUN_TEST(testAdcMovingAverageAddSample);
+    RUN_TEST(testAdcMovingAverageGet);
     return UNITY_END();
 }

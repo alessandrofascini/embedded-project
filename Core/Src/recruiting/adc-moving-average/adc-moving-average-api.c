@@ -42,8 +42,10 @@ void adc_moving_average_add_sample(struct AdcMovingAverage *self, const uint16_t
 }
 
 float adc_moving_average_get(const struct AdcMovingAverage *self) {
-    // TODO: implement
-    return NAN;
+    if (self == NULL || self->count == 0) {
+        return NAN;
+    }
+    return (float)self->sum / (float)self->count;
 }
 
 uint16_t adc_moving_average_get_last_sample(const struct AdcMovingAverage *self) {
