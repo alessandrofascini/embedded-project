@@ -27,7 +27,18 @@ enum AdcMovingAverageError adc_moving_average_init(struct AdcMovingAverage *self
 }
 
 void adc_moving_average_add_sample(struct AdcMovingAverage *self, const uint16_t sample) {
-    // TODO: implement
+    if (self == NULL || self->buffer == NULL || self->capacity == 0) {
+        // TODO: handle error (e.g., assert, log, or return an error code)
+        return;
+    }
+    if (self->count < self->capacity) {
+        self->count++;
+        self->sum += sample;
+    } else {
+        self->sum += sample - self->buffer[self->index];
+    }
+    self->buffer[self->index] = sample;
+    self->index = (self->index + 1) % self->capacity;
 }
 
 float adc_moving_average_get(const struct AdcMovingAverage *self) {
