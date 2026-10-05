@@ -260,7 +260,7 @@ pyrightconfig.json
 .libdeps/
 
 ### VisualStudioCode ###
-**/.vscode/*
+**/.vscode
 #!.vscode/settings.json
 #!.vscode/tasks.json
 #!.vscode/launch.json
@@ -411,5 +411,11 @@ STM32Make.make
 ### LOCAL IGNORE ###
 #in case git exclude is not used
 .local_gitignore
+
+### Local toolchain shims ###
+# Host-specific symlinks (e.g. gcc -> /usr/bin/gcc-14) used to work around the
+# native `pio test` env needing a newer compiler than the system default.
+# Not portable across machines - see README's "Running tests" section.
+.toolchain-tests/
 
 ## ---------------- END MANUALLY ADDED ---------------- ##
