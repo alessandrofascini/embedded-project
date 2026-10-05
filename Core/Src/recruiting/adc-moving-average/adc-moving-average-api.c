@@ -49,6 +49,9 @@ float adc_moving_average_get(const struct AdcMovingAverage *self) {
 }
 
 uint16_t adc_moving_average_get_last_sample(const struct AdcMovingAverage *self) {
-    // TODO: implement
-    return ADC_MOVING_AVERAGE_NO_DATA;
+    if (self == NULL || self->count == 0) {
+        return ADC_MOVING_AVERAGE_NO_DATA;
+    }
+    const uint16_t last_index = (self->index + self->capacity - 1) % self->capacity;
+    return self->buffer[last_index];
 }

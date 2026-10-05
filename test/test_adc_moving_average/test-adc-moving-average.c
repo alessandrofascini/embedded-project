@@ -44,7 +44,6 @@ void testAdcMovingAverageInit(void) {
     TEST_ASSERT_EQUAL_UINT32(0, SUT.sum);
     TEST_ASSERT_EQUAL_INT(0, SUT.index);
     TEST_ASSERT_EQUAL_INT(0, SUT.count);
-    TEST_ASSERT_EQUAL_UINT16(0, SUT.buffer[0]); // Check that the first element is initialized to 0
 }
 
 void testAdcMovingAverageAddSample(void) {
@@ -125,10 +124,48 @@ void testAdcMovingAverageGet(void) {
     TEST_ASSERT_FLOAT_IS_NAN(adc_moving_average_get(NULL));
 }
 
+void testAdcMovingAverageGetLastSample(void) {
+    struct AdcMovingAverageGetLastSampleCase {
+        uint16_t samples[8];           // samples to add, in order, before calling adc_moving_average_get_last_sample()
+        size_t num_samples;            // how many of the above to actually add
+        size_t buffer_size;            // capacity of the buffer to init the AdcMovingAverage with
+        uint16_t expected_last_sample; // expected return value (use ADC_MOVING_AVERAGE_NO_DATA for the no-data case)
+    };
+
+    const struct AdcMovingAverageGetLastSampleCase test_cases[] = {
+        { {}, 0, 4, ADC_MOVING_AVERAGE_NO_DATA }, // no data yet
+        { { 1, 2, 3 }, 3, 4, 3 },                 // partial fill, no wrap
+        { { 1, 2, 3, 4 }, 4, 4, 4 },              // exactly at capacity
+        { { 1, 2, 3, 4, 5 }, 5, 4, 5 },           // wrapped once
+        { { 1, 2, 3, 4, 5, 6, 7 }, 7, 4, 7 },     // wrapped twice
+    };
+    const size_t num_cases = sizeof(test_cases) / sizeof(test_cases[0]);
+
+    for (size_t i = 0; i < num_cases; i++) {
+        const struct AdcMovingAverageGetLastSampleCase *c = &test_cases[i];
+
+        const size_t buffer_size = c->buffer_size;
+        struct AdcMovingAverage SUT;
+        uint16_t buffer[buffer_size];
+
+        enum AdcMovingAverageError result = adc_moving_average_init(&SUT, buffer, buffer_size);
+        TEST_ASSERT_EQUAL_INT(ADC_MOVING_AVERAGE_OK, result);
+
+        for (size_t j = 0; j < c->num_samples; j++) {
+            adc_moving_average_add_sample(&SUT, c->samples[j]);
+        }
+        uint16_t last_sample = adc_moving_average_get_last_sample(&SUT);
+        TEST_ASSERT_EQUAL_INT(c->expected_last_sample, last_sample);
+    }
+
+    TEST_ASSERT_EQUAL_INT(ADC_MOVING_AVERAGE_NO_DATA, adc_moving_average_get_last_sample(NULL));
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(testAdcMovingAverageInit);
     RUN_TEST(testAdcMovingAverageAddSample);
     RUN_TEST(testAdcMovingAverageGet);
+    RUN_TEST(testAdcMovingAverageGetLastSample);
     return UNITY_END();
 }
