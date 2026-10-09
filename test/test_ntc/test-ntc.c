@@ -7,6 +7,7 @@
 
 #include "unity.h"
 #include "ntc-api.h"
+#include "adc-moving-average-api.h"
 // Include the FFF library for function mocking (must be pasted into test/include/fff.h)
 #include "fff.h"
 
@@ -36,8 +37,14 @@ void testNtcInit(void) {
 }
 
 void testNtcAddSample(void) {
-    // TODO: implement - cover that ntc_add_sample() delegates correctly into self->filter
-    // (reuse the same below/at/above-capacity scenarios as AdcMovingAverage's add_sample test)
+    struct NTC ntc;
+
+    ntc_init(&ntc, 1, 1, 1, 1, 1);
+
+    // Add a sample and check that the moving average filter is updated
+    const uint16_t raw_adc_sample = 2048; // Mid-scale ADC value for a 12-bit ADC
+    ntc_add_sample(&ntc, raw_adc_sample);
+    TEST_ASSERT_EQUAL(raw_adc_sample, adc_moving_average_get_last_sample(&ntc.filter));
 }
 
 void testNtcRawAdcToResistance(void) {
