@@ -46,7 +46,10 @@ enum NtcError ntc_init(struct NTC *self, const float r_pullup, const float r0, c
 }
 
 void ntc_add_sample(struct NTC *self, const uint16_t raw_adc) {
-    // TODO: implement
+    if (self == NULL) {
+        return;
+    }
+    adc_moving_average_add_sample(&self->filter, raw_adc);
 }
 
 float ntc_raw_adc_to_resistance(const struct NTC *self, const uint16_t raw_adc) {
