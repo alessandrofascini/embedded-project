@@ -38,6 +38,16 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DMA_BUFFER_SIZE 2
+
+#define NTC_R_PULLUP (18000.0f)
+#define NTC_R0 (8755.0f)
+#define NTC_T0_KELVIN (298.15f)
+#define NTC_BETA (3950.0f)
+
+#define POT_R_PULLUP (5000.0f)
+#define POT_R0 (5000.0f)
+#define POT_T0_KELVIN (298.15f)
+#define POT_BETA (3950.0f)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -97,10 +107,10 @@ int main(void) {
     /* USER CODE BEGIN 2 */
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
     struct NTC ntc;
-    ntc_init(&ntc, 18000.0f, 8755.0f, 298.15f, 3950.0f);
+    ntc_init(&ntc, NTC_R_PULLUP, NTC_R0, NTC_T0_KELVIN, NTC_BETA);
 
     struct NTC pot;
-    ntc_init(&pot, 5000.0f, 5000.0f, 298.15f, 3950.0f);
+    ntc_init(&pot, POT_R_PULLUP, POT_R0, POT_T0_KELVIN, POT_BETA);
     /* USER CODE END 2 */
 
     /* Infinite loop */
