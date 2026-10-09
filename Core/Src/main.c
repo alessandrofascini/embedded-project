@@ -26,6 +26,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include "float-format-api.h"
+#include "ntc-api.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -94,6 +96,11 @@ int main(void) {
     MX_USART2_UART_Init();
     /* USER CODE BEGIN 2 */
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
+    struct NTC ntc;
+    ntc_init(&ntc, 18000.0f, 8755.0f, 298.15f, 3950.0f);
+
+    struct NTC pot;
+    ntc_init(&pot, 5000.0f, 5000.0f, 298.15f, 3950.0f);
     /* USER CODE END 2 */
 
     /* Infinite loop */
@@ -107,7 +114,13 @@ int main(void) {
         const uint16_t pot_value = dma_buffer[0];
         const uint16_t ntc_raw = dma_buffer[1];
 
-        printf("POT_RAW:%u,NTC_RAW:%u\r\n", pot_value, ntc_raw);
+        char ntc_celsius[10];
+        float_to_string(ntc_raw_adc_to_celsius(&ntc, ntc_raw), ntc_celsius, sizeof(ntc_celsius));
+
+        char pot_celsius[10];
+        float_to_string(ntc_raw_adc_to_celsius(&pot, pot_value), pot_celsius, sizeof(pot_celsius));
+
+        printf("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", pot_value, pot_celsius, ntc_raw, ntc_celsius);
     }
     /* USER CODE END 3 */
 }
