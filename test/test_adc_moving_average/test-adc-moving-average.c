@@ -10,6 +10,14 @@
 // Include the FFF library for function mocking (must be pasted into test/include/fff.h)
 #include "fff.h"
 
+void setUp(void) {
+    // Here any initialization code can be placed that needs to run before each test
+}
+
+void tearDown(void) {
+    // Here any cleanup code can be placed that needs to run after each test
+}
+
 void testAdcMovingAverageInit(void) {
     struct AdcMovingAverageInitCase {
         struct AdcMovingAverage *self;

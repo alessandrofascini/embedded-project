@@ -18,6 +18,14 @@ struct FloatFormatCase {
     const char *expected_string; // NULL if the conversion is expected to fail (buffer content undefined/irrelevant)
 };
 
+void setUp(void) {
+    // Here any initialization code can be placed that needs to run before each test
+}
+
+void tearDown(void) {
+    // Here any cleanup code can be placed that needs to run after each test
+}
+
 void testFloatFormatCases(void) {
     char buffer[16];
 
