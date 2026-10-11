@@ -16,7 +16,7 @@ between the two modes.
 - [Hardware](#hardware)
 - [Building and flashing](#building-and-flashing)
 - [Running tests](#running-tests)
-- [Operating modes](#operating-modes) (TBD)
+- [Operating modes](#operating-modes)
 - [CLI commands](#cli-commands) (TBD)
 - [FSM design](#fsm-design) (TBD)
 - [Filters](#filters) (TBD)
@@ -83,6 +83,11 @@ This project uses [PlatformIO](https://platformio.org/).
 pio run -t upload
 ```
 
+```sh
+# Open the serial monitor (ST-LINK Virtual COM Port, 115200 baud)
+pio device monitor -b 115200
+```
+
 Static analysis (clang-tidy, scoped to `Core/Src/recruiting`):
 
 ```sh
@@ -127,18 +132,24 @@ pio test -e tests -f test_float_format
 
 ## Operating modes
 
-_(TBD — not implemented yet. Planned design: two mutually exclusive modes,
-toggled by pressing the user button (B1):
+The firmware has two mutually exclusive modes, toggled by pressing the user
+button (B1):
 
-1. **Streaming mode** (default at boot): the board sends a formatted line of
-   sensor data over USART2 every 100 ms, with the currently active filter
-   applied.
-2. **CLI mode**: streaming stops; the user can type commands over the serial
-   terminal to change the active filter. Pressing the button again returns to
-   streaming mode.
+1. **Streaming mode** (default once initialization completes): the board
+   sends a formatted line of sensor data over USART2 every 100 ms, with the
+   currently active filter applied.
+2. **CLI mode**: streaming stops; the user will be able to type commands over
+   the serial terminal to change the active filter (CLI command parsing is
+   not implemented yet — see [CLI commands](#cli-commands)). Pressing the
+   button again returns to streaming mode.
+
+During the short window between peripheral initialization and the point
+where the firmware selects streaming mode as the startup default, the board
+is in a transient startup state and ignores button presses, so an early
+press can't leave the mode toggle in an inconsistent state.
 
 See [FSM design](#fsm-design) for the full state/transition table once it
-exists.)_
+exists.
 
 ## CLI commands
 

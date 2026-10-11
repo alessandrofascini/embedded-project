@@ -32,7 +32,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef void (*state_handler)(void);
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -59,18 +59,22 @@
 
 /* USER CODE BEGIN PV */
 /* dma_buffer[0] = POT (channel 0); dma_buffer[1] = NTC (channel 1) */
-uint16_t dma_buffer[DMA_BUFFER_SIZE];
+static uint16_t dma_buffer[DMA_BUFFER_SIZE];
+static struct NTC ntc;
+static struct NTC pot;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+static void prv_state_not_initialized(void);
+static void prv_state_cli(void);
+static void prv_state_print(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+static volatile state_handler current_state = prv_state_not_initialized;
 /* USER CODE END 0 */
 
 /**
@@ -105,12 +109,13 @@ int main(void) {
     MX_ADC1_Init();
     MX_USART2_UART_Init();
     /* USER CODE BEGIN 2 */
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
-    struct NTC ntc;
-    ntc_init(&ntc, NTC_R_PULLUP, NTC_R0, NTC_T0_KELVIN, NTC_BETA);
+    current_state = prv_state_print;
 
-    struct NTC pot;
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
+
+    ntc_init(&ntc, NTC_R_PULLUP, NTC_R0, NTC_T0_KELVIN, NTC_BETA);
     ntc_init(&pot, POT_R_PULLUP, POT_R0, POT_T0_KELVIN, POT_BETA);
+
     /* USER CODE END 2 */
 
     /* Infinite loop */
@@ -119,18 +124,7 @@ int main(void) {
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        HAL_Delay(100);
-
-        const uint16_t pot_value = dma_buffer[0];
-        const uint16_t ntc_raw = dma_buffer[1];
-
-        char ntc_celsius[10];
-        float_to_string(ntc_raw_adc_to_celsius(&ntc, ntc_raw), ntc_celsius, sizeof(ntc_celsius));
-
-        char pot_celsius[10];
-        float_to_string(ntc_raw_adc_to_celsius(&pot, pot_value), pot_celsius, sizeof(pot_celsius));
-
-        printf("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", pot_value, pot_celsius, ntc_raw, ntc_celsius);
+        current_state();
     }
     /* USER CODE END 3 */
 }
@@ -171,6 +165,42 @@ void SystemClock_Config(void) {
 int __io_putchar(int ch) {
     HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
     return ch;
+}
+
+static void prv_state_not_initialized(void) {
+    /* TODO: replace with logger */
+    printf("[WARN] unreachable state reached during startup\r\n");
+    HAL_Delay(1000);
+}
+
+static void prv_state_cli(void) {
+    printf("Current state: cli\r\n");
+    HAL_Delay(1000);
+}
+
+static void prv_state_print(void) {
+    const uint16_t pot_value = dma_buffer[0];
+    const uint16_t ntc_raw = dma_buffer[1];
+
+    char ntc_celsius[10];
+    float_to_string(ntc_raw_adc_to_celsius(&ntc, ntc_raw), ntc_celsius, sizeof(ntc_celsius));
+
+    char pot_celsius[10];
+    float_to_string(ntc_raw_adc_to_celsius(&pot, pot_value), pot_celsius, sizeof(pot_celsius));
+
+    printf("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", pot_value, pot_celsius, ntc_raw, ntc_celsius);
+    HAL_Delay(100);
+}
+
+void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin) {
+    if (GPIO_Pin != BTN_Pin || current_state == &prv_state_not_initialized) {
+        return;
+    }
+    if (current_state == &prv_state_print) {
+        current_state = &prv_state_cli;
+    } else {
+        current_state = &prv_state_print;
+    }
 }
 /* USER CODE END 4 */
 
