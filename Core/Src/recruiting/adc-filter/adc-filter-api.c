@@ -49,7 +49,7 @@ void adc_filter_set_mode(struct AdcFilter *self, const enum AdcFilterMode mode) 
             break;
         case ADC_FILTER_RAW:
         default:
-            self->apply = prv_mode_raw; // Default to raw mode on error
+            self->apply = prv_mode_raw; /* Default to raw mode */
             break;
     }
 }

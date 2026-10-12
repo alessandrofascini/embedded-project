@@ -68,7 +68,7 @@ void testAdcFilterApply(void) {
     adc_filter_apply(&filter, 1);
     adc_filter_apply(&filter, 2);
     const uint16_t result = adc_filter_apply(&filter, 3);
-    TEST_ASSERT_EQUAL_UINT16(2, result); // (1+2+3)/3 = 2.0
+    TEST_ASSERT_EQUAL_UINT16(2, result); /* (1+2+3)/3 = 2.0 */
 
     TEST_ASSERT_EQUAL_UINT16(ADC_FILTER_INVALID_OPERATION, adc_filter_apply(NULL, 100));
 }

@@ -120,7 +120,7 @@ int main(void) {
 
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
 
-    /*! TODO: handle initialization errors */
+    /* TODO: handle initialization errors */
     adc_filter_init(&pot_filter);
     ntc_init(&pot, POT_R_PULLUP, POT_R0, POT_T0_KELVIN, POT_BETA);
     adc_filter_init(&ntc_filter);
