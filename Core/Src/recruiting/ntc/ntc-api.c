@@ -7,6 +7,7 @@
 #include "ntc-api.h"
 
 #include <math.h>
+#include <stddef.h>
 
 #define KELVIN_TO_CELSIUS_OFFSET (273.15f)
 
