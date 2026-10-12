@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include "adc-filter-api.h"
 #include "float-format-api.h"
 #include "ntc-api.h"
 /* USER CODE END Includes */
@@ -60,8 +61,14 @@ typedef void (*state_handler)(void);
 /* USER CODE BEGIN PV */
 /* dma_buffer[0] = POT (channel 0); dma_buffer[1] = NTC (channel 1) */
 static uint16_t dma_buffer[DMA_BUFFER_SIZE];
-static struct NTC ntc;
+
+/*! Potentiometer instances */
+static struct AdcFilter pot_filter;
 static struct NTC pot;
+
+/*! NTC instances */
+static struct AdcFilter ntc_filter;
+static struct NTC ntc;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,8 +120,11 @@ int main(void) {
 
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
 
-    ntc_init(&ntc, NTC_R_PULLUP, NTC_R0, NTC_T0_KELVIN, NTC_BETA);
+    /*! TODO: handle initialization errors */
+    adc_filter_init(&pot_filter);
     ntc_init(&pot, POT_R_PULLUP, POT_R0, POT_T0_KELVIN, POT_BETA);
+    adc_filter_init(&ntc_filter);
+    ntc_init(&ntc, NTC_R_PULLUP, NTC_R0, NTC_T0_KELVIN, NTC_BETA);
 
     /* USER CODE END 2 */
 
@@ -179,8 +189,8 @@ static void prv_state_cli(void) {
 }
 
 static void prv_state_print(void) {
-    const uint16_t pot_value = dma_buffer[0];
-    const uint16_t ntc_raw = dma_buffer[1];
+    const uint16_t pot_value = adc_filter_apply(&pot_filter, dma_buffer[0]);
+    const uint16_t ntc_raw = adc_filter_apply(&ntc_filter, dma_buffer[1]);
 
     char ntc_celsius[10];
     float_to_string(ntc_raw_adc_to_celsius(&ntc, ntc_raw), ntc_celsius, sizeof(ntc_celsius));
