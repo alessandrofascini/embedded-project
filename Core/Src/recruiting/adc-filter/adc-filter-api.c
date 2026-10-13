@@ -15,6 +15,14 @@
 
 #include "adc-moving-average-api.h"
 
+#define ADC_FILTER_LFSR_SEED (0xACE1)
+#define ADC_FILTER_NOISE_AMPLITUDE (20)
+#define ADC_FILTER_MAX_RAW_VALUE (4095)
+#define ADC_FILTER_NOISE_RANGE_SIZE (2 * ADC_FILTER_NOISE_AMPLITUDE + 1)
+
+static uint16_t prv_lfsr_state = ADC_FILTER_LFSR_SEED;
+static uint16_t prv_lfsr_next(void);
+
 static uint16_t prv_mode_raw(struct AdcFilter *self, uint16_t raw_sample);
 static uint16_t prv_mode_average(struct AdcFilter *self, uint16_t raw_sample);
 static uint16_t prv_mode_noise(struct AdcFilter *self, uint16_t raw_sample);
@@ -80,12 +88,24 @@ uint16_t adc_filter_apply(struct AdcFilter *self, const uint16_t raw_sample) {
     return self->apply(self, raw_sample);
 }
 
+/*!
+ * \brief Apply a raw ADC sample.
+ * \param self The ADC filter instance.
+ * \param raw_sample The raw ADC sample.
+ * \return The raw sample.
+ */
 static uint16_t prv_mode_raw(struct AdcFilter *self, uint16_t raw_sample) {
     /* self is unused here, so it is not validated — nothing in this
      * function can be affected by it being NULL. */
     return raw_sample;
 }
 
+/*!
+ * \brief Apply a moving average filter to a raw ADC sample.
+ * \param self The ADC filter instance.
+ * \param raw_sample The raw ADC sample.
+ * \return The averaged sample.
+ */
 static uint16_t prv_mode_average(struct AdcFilter *self, uint16_t raw_sample) {
     if (self == NULL) {
         return ADC_FILTER_INVALID_OPERATION;
@@ -94,17 +114,54 @@ static uint16_t prv_mode_average(struct AdcFilter *self, uint16_t raw_sample) {
     return (uint16_t)adc_moving_average_get(&self->moving_average);
 }
 
-static uint16_t prv_mode_noise(struct AdcFilter *self, uint16_t raw_sample) {
-    /* self is unused here, so it is not validated — nothing in this
-     * function can be affected by it being NULL. */
-    /* TODO: Implement noise logic */
-    return raw_sample;
+/*!
+ * \brief Advance the shared 16-bit Fibonacci LFSR by one step.
+ *       Uses taps at bits 0, 2, 3, 5 (polynomial x^16+x^14+x^13+x^11+1),
+ *       a maximal-period polynomial for a 16-bit LFSR (period 65535).
+ * \return The LFSR's new state, usable as a 16-bit pseudo-random value.
+ */
+static uint16_t prv_lfsr_next(void) {
+    uint16_t bit = prv_lfsr_state;
+    bit ^= prv_lfsr_state >> 2;
+    bit ^= prv_lfsr_state >> 3;
+    bit ^= prv_lfsr_state >> 5;
+    bit &= 1;
+    prv_lfsr_state = (prv_lfsr_state >> 1) | (bit << 15);
+    return prv_lfsr_state;
 }
 
-static uint16_t prv_mode_noise_and_average(struct AdcFilter *self, uint16_t raw_sample) {
-    const uint16_t noisy_sample = prv_mode_noise(self, raw_sample);
-    if (noisy_sample == ADC_FILTER_INVALID_OPERATION) {
-        return ADC_FILTER_INVALID_OPERATION;
+/*!
+ * \brief Apply noise to a raw ADC sample.
+ * \param self The ADC filter instance.
+ * \param raw_sample The raw ADC sample.
+ * \return The noisy sample.
+ */
+static uint16_t prv_mode_noise(struct AdcFilter *self, uint16_t raw_sample) {
+    /* self is unused here, so it is not validated — nothing in this
+    * function can be affected by it being NULL. */
+    /* The modulo introduces a tiny bias (65535 % ADC_FILTER_NOISE_RANGE_SIZE != 0),
+    * so a few offsets are very slightly more likely than others. Negligible for
+    * demonstrative noise on a 12-bit ADC value; not worth the complexity of
+    * rejection sampling here. */
+    const int32_t offset = (int32_t)(prv_lfsr_next() % ADC_FILTER_NOISE_RANGE_SIZE) - ADC_FILTER_NOISE_AMPLITUDE;
+    int32_t noisy_sample = (int32_t)raw_sample + offset;
+    if (noisy_sample < 0) {
+        noisy_sample = 0;
+    } else if (noisy_sample > ADC_FILTER_MAX_RAW_VALUE) {
+        noisy_sample = ADC_FILTER_MAX_RAW_VALUE;
     }
+    return (uint16_t)noisy_sample;
+}
+
+/*!
+ * \brief Apply noise and averaging filters to a raw ADC sample.
+ * \param self The ADC filter instance.
+ * \param raw_sample The raw ADC sample.
+ * \return The filtered sample.
+ */
+static uint16_t prv_mode_noise_and_average(struct AdcFilter *self, uint16_t raw_sample) {
+    /* self may be NULL here without issue: prv_mode_noise() ignores it,
+    * and prv_mode_average() validates it before dereferencing it. */
+    const uint16_t noisy_sample = prv_mode_noise(self, raw_sample);
     return prv_mode_average(self, noisy_sample);
 }
