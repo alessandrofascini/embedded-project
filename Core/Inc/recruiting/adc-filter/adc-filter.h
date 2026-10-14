@@ -26,7 +26,8 @@ enum AdcFilterMode {
     ADC_FILTER_NOISE = 1 << 0,                                                   /*!< 01 - Inject configurable random noise. */
     ADC_FILTER_MOVING_AVERAGE = 1 << 1,                                          /*!< 10 - Apply a moving-average filter. */
     ADC_FILTER_NOISE_AND_AVERAGE = ADC_FILTER_NOISE | ADC_FILTER_MOVING_AVERAGE, /*!< 11 - Both, noise injected before averaging. */
-    ADC_FILTER_ERROR_MODE = -1                                                   /*!< -1 - Error mode. Should never used */
+    ADC_FILTER_ERROR_MODE = -1,                                                  /*!< -1 - Error mode. Should never used */
+    ADC_FILTER_UNKNOWN_MODE = -2,                                                /*!< -2 - Unknown mode. Should never used */
 };
 
 /*!
