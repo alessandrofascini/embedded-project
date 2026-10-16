@@ -43,32 +43,41 @@ enum AdcFilterError adc_filter_init(struct AdcFilter *self) {
     return ADC_FILTER_OK;
 }
 
-void adc_filter_set_mode(struct AdcFilter *self, const enum AdcFilterMode new_mode) {
+void adc_filter_handle_event(struct AdcFilter *self, const enum AdcFilterEvent event) {
     if (self == NULL) {
-        /* TODO: Handle the error.
-         * If the mode is valid, I assume that is applied. */
+        /* TODO: Handle the error. */
         return;
     }
-    assert(ADC_FILTER_RAW <= new_mode && new_mode <= ADC_FILTER_NOISE_AND_AVERAGE);
-    const enum AdcFilterMode old_mode = adc_filter_get_mode(self);
-    if (old_mode == new_mode) {
-        /* No change needed - Idempotent operation */
-        return;
+    const enum AdcFilterMode mode = adc_filter_get_mode(self);
+    switch (event) {
+        case ADC_FILTER_EVENT_CLEAR:
+            prv_adc_moving_average_init(self);
+            self->apply = prv_mode_raw;
+            return;
+
+        case ADC_FILTER_EVENT_ADD_NOISE:
+            /* NOISE and NOISE_AND_AVERAGE already inject noise: nothing to do. */
+            if (mode == ADC_FILTER_RAW) {
+                self->apply = prv_mode_noise;
+            } else if (mode == ADC_FILTER_MOVING_AVERAGE) {
+                self->apply = prv_mode_noise_and_average;
+            }
+            return;
+
+        case ADC_FILTER_EVENT_ADD_AVERAGE:
+            /* MOVING_AVERAGE and NOISE_AND_AVERAGE already average: nothing to do,
+             * and the window must not be reset. */
+            if (mode == ADC_FILTER_RAW) {
+                self->apply = prv_mode_average;
+            } else if (mode == ADC_FILTER_NOISE) {
+                self->apply = prv_mode_noise_and_average;
+            }
+            return;
+
+        default:
+            assert(false && "unknown AdcFilterEvent");
+            return;
     }
-    if (new_mode == ADC_FILTER_RAW) {
-        self->apply = prv_mode_raw;
-        return;
-    }
-    if (old_mode != ADC_FILTER_RAW) {
-        self->apply = prv_mode_noise_and_average;
-        return;
-    }
-    if (new_mode == ADC_FILTER_NOISE) {
-        self->apply = prv_mode_noise;
-        return;
-    }
-    prv_adc_moving_average_init(self);
-    self->apply = prv_mode_average;
 }
 
 enum AdcFilterMode adc_filter_get_mode(const struct AdcFilter *self) {

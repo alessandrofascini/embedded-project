@@ -13,11 +13,23 @@
 enum AdcFilterError adc_filter_init(struct AdcFilter *self);
 
 /*!
- * \brief Set the mode of the ADC filter.
- * \param self The AdcFilter instance to configure.
- * \param mode The mode to set.
+ * \brief Feed an event to the filter's state machine.
+ *
+ * Transitions (* = the moving-average window is reset):
+ *
+ * | state \ event     | CLEAR | ADD_NOISE         | ADD_AVERAGE         |
+ * |-------------------|-------|-------------------|---------------------|
+ * | RAW               | RAW   | NOISE             | MOVING_AVERAGE*     |
+ * | NOISE             | RAW   | NOISE             | NOISE_AND_AVERAGE*  |
+ * | MOVING_AVERAGE    | RAW   | NOISE_AND_AVERAGE | MOVING_AVERAGE      |
+ * | NOISE_AND_AVERAGE | RAW   | NOISE_AND_AVERAGE | NOISE_AND_AVERAGE   |
+ *
+ * A corrupted instance (ADC_FILTER_UNKNOWN_MODE) only accepts CLEAR, which recovers it.
+ *
+ * \param self  The AdcFilter instance to update.
+ * \param event The event to handle.
  */
-void adc_filter_set_mode(struct AdcFilter *self, const enum AdcFilterMode mode);
+void adc_filter_handle_event(struct AdcFilter *self, const enum AdcFilterEvent event);
 
 /*!
  * \brief Get the mode of the ADC filter.

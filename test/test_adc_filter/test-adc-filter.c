@@ -43,36 +43,68 @@ void testAdcFilterInit(void) {
      * the other tests here that rely on the real moving average. */
 }
 
-void testAdcFilterSetModeAndGetMode(void) {
+/*!
+ * \brief Drive a freshly initialized filter into the given state through events only.
+ * \param filter The filter to initialize and drive.
+ * \param mode   The state to reach.
+ */
+static void prv_reach_mode(struct AdcFilter *filter, const enum AdcFilterMode mode) {
+    adc_filter_init(filter);
+    if ((mode & ADC_FILTER_NOISE) != 0) {
+        adc_filter_handle_event(filter, ADC_FILTER_EVENT_ADD_NOISE);
+    }
+    if ((mode & ADC_FILTER_MOVING_AVERAGE) != 0) {
+        adc_filter_handle_event(filter, ADC_FILTER_EVENT_ADD_AVERAGE);
+    }
+    TEST_ASSERT_EQUAL(mode, adc_filter_get_mode(filter));
+}
+
+void testAdcFilterHandleEventTransitions(void) {
+    /* Exhaustive state x event table; must match the one documented in adc-filter-api.h */
+    const struct {
+        enum AdcFilterMode from;
+        enum AdcFilterEvent event;
+        enum AdcFilterMode to;
+    } transitions[] = {
+        { ADC_FILTER_RAW, ADC_FILTER_EVENT_CLEAR, ADC_FILTER_RAW },
+        { ADC_FILTER_RAW, ADC_FILTER_EVENT_ADD_NOISE, ADC_FILTER_NOISE },
+        { ADC_FILTER_RAW, ADC_FILTER_EVENT_ADD_AVERAGE, ADC_FILTER_MOVING_AVERAGE },
+        { ADC_FILTER_NOISE, ADC_FILTER_EVENT_CLEAR, ADC_FILTER_RAW },
+        { ADC_FILTER_NOISE, ADC_FILTER_EVENT_ADD_NOISE, ADC_FILTER_NOISE },
+        { ADC_FILTER_NOISE, ADC_FILTER_EVENT_ADD_AVERAGE, ADC_FILTER_NOISE_AND_AVERAGE },
+        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_EVENT_CLEAR, ADC_FILTER_RAW },
+        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_EVENT_ADD_NOISE, ADC_FILTER_NOISE_AND_AVERAGE },
+        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_EVENT_ADD_AVERAGE, ADC_FILTER_MOVING_AVERAGE },
+        { ADC_FILTER_NOISE_AND_AVERAGE, ADC_FILTER_EVENT_CLEAR, ADC_FILTER_RAW },
+        { ADC_FILTER_NOISE_AND_AVERAGE, ADC_FILTER_EVENT_ADD_NOISE, ADC_FILTER_NOISE_AND_AVERAGE },
+        { ADC_FILTER_NOISE_AND_AVERAGE, ADC_FILTER_EVENT_ADD_AVERAGE, ADC_FILTER_NOISE_AND_AVERAGE },
+    };
+    const size_t n = sizeof(transitions) / sizeof(transitions[0]);
+
+    for (size_t i = 0; i < n; i++) {
+        struct AdcFilter filter;
+        prv_reach_mode(&filter, transitions[i].from);
+        adc_filter_handle_event(&filter, transitions[i].event);
+        TEST_ASSERT_EQUAL_MESSAGE(transitions[i].to, adc_filter_get_mode(&filter), "unexpected transition");
+    }
+}
+
+void testAdcFilterInvalidInstances(void) {
+    adc_filter_handle_event(NULL, ADC_FILTER_EVENT_ADD_NOISE); /* must not crash */
+    TEST_ASSERT_EQUAL(ADC_FILTER_ERROR_MODE, adc_filter_get_mode(NULL));
+
     struct AdcFilter filter;
     adc_filter_init(&filter);
+    filter.apply = NULL; /* simulate a corrupted instance */
+    TEST_ASSERT_EQUAL(ADC_FILTER_UNKNOWN_MODE, adc_filter_get_mode(&filter));
 
-    /* starting mode: ADC_FILTER_RAW */
-    const enum AdcFilterMode modes[][2] = {
-        { ADC_FILTER_RAW, ADC_FILTER_RAW },
-        { ADC_FILTER_NOISE, ADC_FILTER_NOISE },
-        { ADC_FILTER_NOISE, ADC_FILTER_NOISE },
-        { ADC_FILTER_RAW, ADC_FILTER_RAW },
-        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_MOVING_AVERAGE },
-        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_MOVING_AVERAGE },
-        { ADC_FILTER_RAW, ADC_FILTER_RAW },
-        { ADC_FILTER_NOISE, ADC_FILTER_NOISE },
-        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_NOISE_AND_AVERAGE },
-        { ADC_FILTER_NOISE_AND_AVERAGE, ADC_FILTER_NOISE_AND_AVERAGE },
-        { ADC_FILTER_NOISE, ADC_FILTER_NOISE_AND_AVERAGE },
-        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_NOISE_AND_AVERAGE },
-        { ADC_FILTER_RAW, ADC_FILTER_RAW },
-    };
+    /* ADD events cannot fix a corrupted instance... */
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
+    TEST_ASSERT_EQUAL(ADC_FILTER_UNKNOWN_MODE, adc_filter_get_mode(&filter));
 
-    const uint8_t n = sizeof(modes) / sizeof(modes[0]);
-
-    for (int i = 0; i < n; i++) {
-        const enum AdcFilterMode new_mode = modes[i][0];
-        const enum AdcFilterMode expected_mode = modes[i][1];
-
-        adc_filter_set_mode(&filter, new_mode);
-        TEST_ASSERT_EQUAL(expected_mode, adc_filter_get_mode(&filter));
-    }
+    /* ...but CLEAR recovers it */
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_CLEAR);
+    TEST_ASSERT_EQUAL(ADC_FILTER_RAW, adc_filter_get_mode(&filter));
 }
 
 void testAdcFilterApply(void) {
@@ -81,7 +113,7 @@ void testAdcFilterApply(void) {
 
     TEST_ASSERT_EQUAL_UINT16(2048, adc_filter_apply(&filter, 2048));
 
-    adc_filter_set_mode(&filter, ADC_FILTER_MOVING_AVERAGE);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
     adc_filter_apply(&filter, 1);
     adc_filter_apply(&filter, 2);
     const uint16_t result = adc_filter_apply(&filter, 3);
@@ -90,18 +122,18 @@ void testAdcFilterApply(void) {
     TEST_ASSERT_EQUAL_UINT16(ADC_FILTER_INVALID_OPERATION, adc_filter_apply(NULL, 100));
 }
 
-void testAdcFilterSetModeResetsMovingAverage(void) {
+void testAdcFilterAddAverageResetsMovingAverage(void) {
     struct AdcFilter filter;
     adc_filter_init(&filter);
-    adc_filter_set_mode(&filter, ADC_FILTER_MOVING_AVERAGE);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
 
     adc_filter_apply(&filter, 100);
     adc_filter_apply(&filter, 200);
     const uint16_t before_switch = adc_filter_apply(&filter, 300);
     TEST_ASSERT_EQUAL_UINT16(200, before_switch); /* (100+200+300)/3 */
 
-    adc_filter_set_mode(&filter, ADC_FILTER_RAW);
-    adc_filter_set_mode(&filter, ADC_FILTER_MOVING_AVERAGE);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_CLEAR);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
 
     /* window should be empty again, so the average of a single sample
      * equals that sample, not an average carried over from before */
@@ -109,19 +141,52 @@ void testAdcFilterSetModeResetsMovingAverage(void) {
     TEST_ASSERT_EQUAL_UINT16(300, after_switch);
 }
 
-void testAdcFilterSetModeIsIdempotent(void) {
+void testAdcFilterAddAverageOnNoiseResetsMovingAverage(void) {
     struct AdcFilter filter;
     adc_filter_init(&filter);
-    adc_filter_set_mode(&filter, ADC_FILTER_MOVING_AVERAGE);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
+    adc_filter_apply(&filter, 100);
+    adc_filter_apply(&filter, 200);
+
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_CLEAR);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_NOISE);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
+
+    /* With a fresh window the result is the single noisy sample (300 +/- noise);
+     * a stale window would give about (100+200+300)/3 = 200. */
+    const uint16_t result = adc_filter_apply(&filter, 300);
+    TEST_ASSERT_UINT16_WITHIN(TEST_NOISE_AMPLITUDE, 300, result);
+}
+
+void testAdcFilterAddAverageIsIdempotent(void) {
+    struct AdcFilter filter;
+    adc_filter_init(&filter);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
 
     adc_filter_apply(&filter, 100);
     adc_filter_apply(&filter, 200);
 
-    /* re-requesting the same mode must not reset the window */
-    adc_filter_set_mode(&filter, ADC_FILTER_MOVING_AVERAGE);
+    /* re-requesting the average must not reset the window */
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
 
     const uint16_t result = adc_filter_apply(&filter, 300);
     TEST_ASSERT_EQUAL_UINT16(200, result); /* (100+200+300)/3, not reset */
+}
+
+void testAdcFilterAddNoiseKeepsMovingAverage(void) {
+    struct AdcFilter filter;
+    adc_filter_init(&filter);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
+
+    adc_filter_apply(&filter, 100);
+    adc_filter_apply(&filter, 200);
+
+    /* the average was already running: adding noise must not reset its window */
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_NOISE);
+
+    /* (100+200+(300 +/- noise))/3 = 200 +/- noise/3 */
+    const uint16_t result = adc_filter_apply(&filter, 300);
+    TEST_ASSERT_UINT16_WITHIN(TEST_NOISE_AMPLITUDE / 3 + 1, 200, result);
 }
 
 void testAdcFilterApplyNoise(void) {
@@ -129,7 +194,7 @@ void testAdcFilterApplyNoise(void) {
 
     struct AdcFilter filter;
     adc_filter_init(&filter);
-    adc_filter_set_mode(&filter, ADC_FILTER_NOISE);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_NOISE);
 
     const uint16_t result = adc_filter_apply(&filter, raw_value);
     const int32_t lower_bound = (int32_t)raw_value - TEST_NOISE_AMPLITUDE;
@@ -146,7 +211,8 @@ void testAdcFilterApplyNoise(void) {
 void testAdcFilterApplyNoiseAndAverage(void) {
     struct AdcFilter filter;
     adc_filter_init(&filter);
-    adc_filter_set_mode(&filter, ADC_FILTER_NOISE_AND_AVERAGE);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_NOISE);
+    adc_filter_handle_event(&filter, ADC_FILTER_EVENT_ADD_AVERAGE);
 
     for (int i = 0; i < 5; i++) {
         const uint16_t result = adc_filter_apply(&filter, 2048);
@@ -157,10 +223,13 @@ void testAdcFilterApplyNoiseAndAverage(void) {
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(testAdcFilterInit);
-    RUN_TEST(testAdcFilterSetModeAndGetMode);
+    RUN_TEST(testAdcFilterHandleEventTransitions);
+    RUN_TEST(testAdcFilterInvalidInstances);
     RUN_TEST(testAdcFilterApply);
-    RUN_TEST(testAdcFilterSetModeResetsMovingAverage);
-    RUN_TEST(testAdcFilterSetModeIsIdempotent);
+    RUN_TEST(testAdcFilterAddAverageResetsMovingAverage);
+    RUN_TEST(testAdcFilterAddAverageOnNoiseResetsMovingAverage);
+    RUN_TEST(testAdcFilterAddAverageIsIdempotent);
+    RUN_TEST(testAdcFilterAddNoiseKeepsMovingAverage);
     RUN_TEST(testAdcFilterApplyNoise);
     RUN_TEST(testAdcFilterApplyNoiseAndAverage);
     return UNITY_END();

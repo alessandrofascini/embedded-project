@@ -31,6 +31,18 @@ enum AdcFilterMode {
 };
 
 /*!
+ * \brief Events driving the AdcFilter state machine (whose states are enum AdcFilterMode).
+ *
+ * Filters are cumulative: ADD events enable a filter on top of the active ones,
+ * CLEAR is the only way to disable them.
+ */
+enum AdcFilterEvent {
+    ADC_FILTER_EVENT_CLEAR,       /*!< Disable every filter (go to ADC_FILTER_RAW). */
+    ADC_FILTER_EVENT_ADD_NOISE,   /*!< Enable noise injection on top of the active filters. */
+    ADC_FILTER_EVENT_ADD_AVERAGE, /*!< Enable the moving average on top of the active filters. */
+};
+
+/*!
  * \brief Error codes for the ADC filter.
  */
 enum AdcFilterError {
