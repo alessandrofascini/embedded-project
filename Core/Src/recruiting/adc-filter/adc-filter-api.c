@@ -17,8 +17,8 @@
 #include "adc-moving-average-api.h"
 
 #define ADC_FILTER_LFSR_SEED (0xACE1)
-#define ADC_FILTER_NOISE_AMPLITUDE (20)
 #define ADC_FILTER_MAX_RAW_VALUE (4095)
+#define ADC_FILTER_NOISE_AMPLITUDE (20)
 #define ADC_FILTER_NOISE_RANGE_SIZE (2 * ADC_FILTER_NOISE_AMPLITUDE + 1)
 
 static uint16_t prv_lfsr_state = ADC_FILTER_LFSR_SEED;
@@ -43,43 +43,32 @@ enum AdcFilterError adc_filter_init(struct AdcFilter *self) {
     return ADC_FILTER_OK;
 }
 
-void adc_filter_set_mode(struct AdcFilter *self, const enum AdcFilterMode mode) {
+void adc_filter_set_mode(struct AdcFilter *self, const enum AdcFilterMode new_mode) {
     if (self == NULL) {
         /* TODO: Handle the error.
          * If the mode is valid, I assume that is applied. */
         return;
     }
-    if (mode == adc_filter_get_mode(self)) {
+    assert(ADC_FILTER_RAW <= new_mode && new_mode <= ADC_FILTER_NOISE_AND_AVERAGE);
+    const enum AdcFilterMode old_mode = adc_filter_get_mode(self);
+    if (old_mode == new_mode) {
         /* No change needed - Idempotent operation */
         return;
     }
-    switch (mode) {
-        case ADC_FILTER_RAW:
-            self->apply = prv_mode_raw;
-            return;
-
-        case ADC_FILTER_NOISE:
-            self->apply = prv_mode_noise;
-            return;
-
-        case ADC_FILTER_MOVING_AVERAGE:
-            self->apply = prv_mode_average;
-            /* Reset the moving average so it starts from an empty window
-             * instead of carrying over samples from a previous activation. */
-            prv_adc_moving_average_init(self);
-            return;
-
-        case ADC_FILTER_NOISE_AND_AVERAGE:
-            self->apply = prv_mode_noise_and_average;
-            /* Reset the moving average so it starts from an empty window
-             * instead of carrying over samples from a previous activation. */
-            prv_adc_moving_average_init(self);
-            return;
-
-        default:
-            /* TODO: Handle the error: this code is reachable if mode belongs to { ADC_FILTER_ERROR_MODE, ADC_FILTER_UNKNOWN_MODE } */
-            return;
+    if (new_mode == ADC_FILTER_RAW) {
+        self->apply = prv_mode_raw;
+        return;
     }
+    if (old_mode != ADC_FILTER_RAW) {
+        self->apply = prv_mode_noise_and_average;
+        return;
+    }
+    if (new_mode == ADC_FILTER_NOISE) {
+        self->apply = prv_mode_noise;
+        return;
+    }
+    prv_adc_moving_average_init(self);
+    self->apply = prv_mode_average;
 }
 
 enum AdcFilterMode adc_filter_get_mode(const struct AdcFilter *self) {
@@ -165,12 +154,12 @@ static uint16_t prv_mode_noise(struct AdcFilter *self, uint16_t raw_sample) {
      * so a few offsets are very slightly more likely than others. Negligible for
      * demonstrative noise on a 12-bit ADC value; not worth the complexity of
      * rejection sampling here. */
-    const int32_t offset = (int32_t)(prv_lfsr_next() % ADC_FILTER_NOISE_RANGE_SIZE) - ADC_FILTER_NOISE_AMPLITUDE;
-    int32_t noisy_sample = (int32_t)raw_sample + offset;
+    const int32_t offset = (int32_t)(prv_lfsr_next() % ADC_FILTER_NOISE_RANGE_SIZE) - (int32_t)(ADC_FILTER_NOISE_AMPLITUDE);
+    const int32_t noisy_sample = ((int32_t)raw_sample) + offset;
     if (noisy_sample < 0) {
-        noisy_sample = 0;
+        return 0;
     } else if (noisy_sample > ADC_FILTER_MAX_RAW_VALUE) {
-        noisy_sample = ADC_FILTER_MAX_RAW_VALUE;
+        return ADC_FILTER_MAX_RAW_VALUE;
     }
     return (uint16_t)noisy_sample;
 }

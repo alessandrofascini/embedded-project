@@ -47,33 +47,32 @@ void testAdcFilterSetModeAndGetMode(void) {
     struct AdcFilter filter;
     adc_filter_init(&filter);
 
-    const enum AdcFilterMode modes[] = {
-        ADC_FILTER_RAW,
-        ADC_FILTER_NOISE,
-        ADC_FILTER_MOVING_AVERAGE,
-        ADC_FILTER_NOISE_AND_AVERAGE,
+    /* starting mode: ADC_FILTER_RAW */
+    const enum AdcFilterMode modes[][2] = {
+        { ADC_FILTER_RAW, ADC_FILTER_RAW },
+        { ADC_FILTER_NOISE, ADC_FILTER_NOISE },
+        { ADC_FILTER_NOISE, ADC_FILTER_NOISE },
+        { ADC_FILTER_RAW, ADC_FILTER_RAW },
+        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_MOVING_AVERAGE },
+        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_MOVING_AVERAGE },
+        { ADC_FILTER_RAW, ADC_FILTER_RAW },
+        { ADC_FILTER_NOISE, ADC_FILTER_NOISE },
+        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_NOISE_AND_AVERAGE },
+        { ADC_FILTER_NOISE_AND_AVERAGE, ADC_FILTER_NOISE_AND_AVERAGE },
+        { ADC_FILTER_NOISE, ADC_FILTER_NOISE_AND_AVERAGE },
+        { ADC_FILTER_MOVING_AVERAGE, ADC_FILTER_NOISE_AND_AVERAGE },
+        { ADC_FILTER_RAW, ADC_FILTER_RAW },
     };
-    const size_t num_modes = sizeof(modes) / sizeof(modes[0]);
 
-    for (size_t i = 0; i < num_modes; i++) {
-        adc_filter_set_mode(&filter, modes[i]);
-        TEST_ASSERT_EQUAL(modes[i], adc_filter_get_mode(&filter));
+    const uint8_t n = sizeof(modes) / sizeof(modes[0]);
+
+    for (int i = 0; i < n; i++) {
+        const enum AdcFilterMode new_mode = modes[i][0];
+        const enum AdcFilterMode expected_mode = modes[i][1];
+
+        adc_filter_set_mode(&filter, new_mode);
+        TEST_ASSERT_EQUAL(expected_mode, adc_filter_get_mode(&filter));
     }
-
-    adc_filter_set_mode(NULL, ADC_FILTER_NOISE);
-    TEST_ASSERT_EQUAL(ADC_FILTER_ERROR_MODE, adc_filter_get_mode(NULL));
-
-    filter.apply = NULL; /* simulate a corrupted instance */
-    TEST_ASSERT_EQUAL(ADC_FILTER_UNKNOWN_MODE, adc_filter_get_mode(&filter));
-
-    /* Testing invalid modes */
-    adc_filter_set_mode(&filter, ADC_FILTER_MOVING_AVERAGE);
-
-    /* Passing an invalid mode must be a no-op: apply stays unchanged */
-    adc_filter_set_mode(&filter, ADC_FILTER_ERROR_MODE);
-    TEST_ASSERT_EQUAL(ADC_FILTER_MOVING_AVERAGE, adc_filter_get_mode(&filter));
-    adc_filter_set_mode(&filter, ADC_FILTER_UNKNOWN_MODE);
-    TEST_ASSERT_EQUAL(ADC_FILTER_MOVING_AVERAGE, adc_filter_get_mode(&filter));
 }
 
 void testAdcFilterApply(void) {

@@ -26,9 +26,13 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <assert.h>
 #include "adc-filter-api.h"
 #include "float-format-api.h"
 #include "ntc-api.h"
+#include "cli-api.h"
+#include "command-buffer-api.h"
+#include "command-executor-api.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,7 +42,9 @@ typedef void (*state_handler)(void);
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DMA_BUFFER_SIZE 2
+#define HOW_MANY_BYTES_TO_READ (1)
+#define DMA_BUFFER_SIZE (2)
+#define CLI_LINE_MAX_LENGTH (64)
 
 #define NTC_R_PULLUP (18000.0f)
 #define NTC_R0 (8755.0f)
@@ -59,6 +65,9 @@ typedef void (*state_handler)(void);
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static uint8_t rx_byte;
+static struct Cli cli;
+
 /* dma_buffer[0] = POT (channel 0); dma_buffer[1] = NTC (channel 1) */
 static uint16_t dma_buffer[DMA_BUFFER_SIZE];
 
@@ -76,7 +85,13 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void prv_state_not_initialized(void);
 static void prv_state_cli(void);
-static void prv_state_print(void);
+static void prv_state_streaming(void);
+
+static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]);
+static enum CommandHandlerStatus prv_command_raw(int argc, char *argv[]);
+static enum CommandHandlerStatus prv_command_avg(int argc, char *argv[]);
+static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -116,8 +131,26 @@ int main(void) {
     MX_ADC1_Init();
     MX_USART2_UART_Init();
     /* USER CODE BEGIN 2 */
-    current_state = prv_state_print;
+    struct CommandBuffer command_buffer;
+    char command_buffer_storage[CLI_LINE_MAX_LENGTH];
+    /* TODO: handle initialization errors */
+    command_buffer_init(&command_buffer, command_buffer_storage, CLI_LINE_MAX_LENGTH);
 
+    struct CommandExecutor command_executor;
+    const struct Command commands[] = {
+        { "help", prv_command_help },
+        { "raw", prv_command_raw },
+        { "avg", prv_command_avg },
+        { "noise", prv_command_noise },
+    };
+    /* TODO: handle initialization errors */
+    command_executor_init(&command_executor, commands, sizeof(commands) / sizeof(commands[0]));
+
+    cli_init(&cli, &command_buffer, &command_executor);
+
+    current_state = prv_state_streaming;
+
+    HAL_UART_Receive_IT(&huart2, &rx_byte, HOW_MANY_BYTES_TO_READ);
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
 
     /* TODO: handle initialization errors */
@@ -180,37 +213,115 @@ int __io_putchar(int ch) {
 static void prv_state_not_initialized(void) {
     /* TODO: replace with logger */
     printf("[WARN] unreachable state reached during startup\r\n");
-    HAL_Delay(1000);
+    HAL_Delay(2000);
 }
 
 static void prv_state_cli(void) {
-    printf("Current state: cli\r\n");
-    HAL_Delay(1000);
+    HAL_Delay(100);
+    if (cli.status == CLI_FEED_EMPTY) {
+        printf("> ");
+        fflush(stdout);
+        cli_set_status_unchanged(&cli);
+    } else if (cli.status == CLI_FEED_UPDATED) {
+        printf("\r\n> %s", cli_get_command(&cli));
+        fflush(stdout);
+        cli_set_status_unchanged(&cli);
+        return;
+    }
+    if (cli.status != CLI_FEED_EXECUTABLE) {
+        assert(cli.status != CLI_FEED_SELF_IS_NULL);
+        return;
+    }
+    printf("\r\n");
+    const enum CommandExecutorStatus exec_status = cli_execute(&cli);
+    switch (exec_status) {
+        case COMMAND_EXECUTOR_OK:
+            return;
+        case COMMAND_EXECUTOR_INVALID_COMMAND:
+            printf("[ERROR] invalid command\r\n");
+            return;
+        case COMMAND_EXECUTOR_LINE_IS_NULL:
+            printf("[ERROR] line is NULL\r\n");
+            return;
+        case COMMAND_EXECUTOR_EMPTY_LINE:
+            printf("[ERROR] empty line\r\n");
+            return;
+        case COMMAND_EXECUTOR_TOO_MANY_ARGS:
+            printf("[ERROR] too many args\r\n");
+            return;
+        case COMMAND_EXECUTOR_COMMAND_NOT_FOUND:
+            printf("[ERROR] command not found\r\n");
+            return;
+        case COMMAND_EXECUTOR_INVALID_ARGS:
+            printf("[ERROR] invalid args\r\n");
+            return;
+        default:
+            printf("[FATAL] cli_execute: should not be here. Error code: %d\r\n", exec_status);
+            return;
+    }
 }
 
-static void prv_state_print(void) {
-    const uint16_t pot_value = adc_filter_apply(&pot_filter, dma_buffer[0]);
-    const uint16_t ntc_raw = adc_filter_apply(&ntc_filter, dma_buffer[1]);
+static void prv_state_streaming(void) {
+    const uint16_t pot_raw = adc_filter_apply(&pot_filter, dma_buffer[0]);
+    char pot_celsius[5];
+    float_to_string(ntc_raw_adc_to_celsius(&pot, pot_raw), pot_celsius, sizeof(pot_celsius));
 
-    char ntc_celsius[10];
+    const uint16_t ntc_raw = adc_filter_apply(&ntc_filter, dma_buffer[1]);
+    char ntc_celsius[5];
     float_to_string(ntc_raw_adc_to_celsius(&ntc, ntc_raw), ntc_celsius, sizeof(ntc_celsius));
 
-    char pot_celsius[10];
-    float_to_string(ntc_raw_adc_to_celsius(&pot, pot_value), pot_celsius, sizeof(pot_celsius));
-
-    printf("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", pot_value, pot_celsius, ntc_raw, ntc_celsius);
+    printf("POT_RAW:%d,POT_C:%s,NTC_RAW:%d,NTC_C:%s\r\n", pot_raw, pot_celsius, ntc_raw, ntc_celsius);
     HAL_Delay(100);
+}
+
+static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]) {
+    printf("Available commands:\r\n");
+    printf("  help  - Show this help message\r\n");
+    printf("  raw   - Show raw ADC values\r\n");
+    printf("  avg   - Show averaged ADC values\r\n");
+    printf("  noise - Show noise levels\r\n");
+    return COMMAND_HANDLER_OK;
+}
+
+static enum CommandHandlerStatus prv_command_raw(int argc, char *argv[]) {
+    adc_filter_set_mode(&pot_filter, ADC_FILTER_RAW);
+    adc_filter_set_mode(&ntc_filter, ADC_FILTER_RAW);
+    printf("removed all the filters applied\r\n");
+    return COMMAND_HANDLER_OK;
+}
+
+static enum CommandHandlerStatus prv_command_avg(int argc, char *argv[]) {
+    adc_filter_set_mode(&pot_filter, ADC_FILTER_MOVING_AVERAGE);
+    adc_filter_set_mode(&ntc_filter, ADC_FILTER_MOVING_AVERAGE);
+    printf("moving average filtering enabled\r\n");
+    return COMMAND_HANDLER_OK;
+}
+
+static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]) {
+    adc_filter_set_mode(&pot_filter, ADC_FILTER_NOISE);
+    adc_filter_set_mode(&ntc_filter, ADC_FILTER_NOISE);
+    printf("noise injection enabled\r\n");
+    return COMMAND_HANDLER_OK;
 }
 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin) {
     if (GPIO_Pin != BTN_Pin || current_state == &prv_state_not_initialized) {
         return;
     }
-    if (current_state == &prv_state_print) {
+    if (current_state == &prv_state_streaming) {
+        cli_reset(&cli);
         current_state = &prv_state_cli;
     } else {
-        current_state = &prv_state_print;
+        current_state = &prv_state_streaming;
     }
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    HAL_UART_Receive_IT(&huart2, &rx_byte, HOW_MANY_BYTES_TO_READ);
+    if (huart != &huart2 || current_state != &prv_state_cli) {
+        return;
+    }
+    cli_feed(&cli, rx_byte);
 }
 /* USER CODE END 4 */
 
