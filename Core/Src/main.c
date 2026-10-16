@@ -45,6 +45,7 @@ typedef void (*state_handler)(void);
 #define HOW_MANY_BYTES_TO_READ (1)
 #define DMA_BUFFER_SIZE (2)
 #define CLI_LINE_MAX_LENGTH (64)
+#define FLOAT_STRING_MAX_LENGTH (10)
 
 #define NTC_R_PULLUP (18000.0f)
 #define NTC_R0 (8755.0f)
@@ -257,11 +258,11 @@ static void prv_state_cli(void) {
 
 static void prv_state_streaming(void) {
     const uint16_t pot_raw = adc_filter_apply(&pot_filter, dma_buffer[0]);
-    char pot_celsius[5];
+    char pot_celsius[FLOAT_STRING_MAX_LENGTH];
     float_to_string(ntc_raw_adc_to_celsius(&pot, pot_raw), pot_celsius, sizeof(pot_celsius));
 
     const uint16_t ntc_raw = adc_filter_apply(&ntc_filter, dma_buffer[1]);
-    char ntc_celsius[5];
+    char ntc_celsius[FLOAT_STRING_MAX_LENGTH];
     float_to_string(ntc_raw_adc_to_celsius(&ntc, ntc_raw), ntc_celsius, sizeof(ntc_celsius));
 
     printf("POT_RAW:%d,POT_C:%s,NTC_RAW:%d,NTC_C:%s\r\n", pot_raw, pot_celsius, ntc_raw, ntc_celsius);
@@ -278,22 +279,22 @@ static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]) {
 }
 
 static enum CommandHandlerStatus prv_command_raw(int argc, char *argv[]) {
-    adc_filter_set_mode(&pot_filter, ADC_FILTER_RAW);
-    adc_filter_set_mode(&ntc_filter, ADC_FILTER_RAW);
+    adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_CLEAR);
+    adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_CLEAR);
     printf("removed all the filters applied\r\n");
     return COMMAND_HANDLER_OK;
 }
 
 static enum CommandHandlerStatus prv_command_avg(int argc, char *argv[]) {
-    adc_filter_set_mode(&pot_filter, ADC_FILTER_MOVING_AVERAGE);
-    adc_filter_set_mode(&ntc_filter, ADC_FILTER_MOVING_AVERAGE);
+    adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_ADD_AVERAGE);
+    adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_ADD_AVERAGE);
     printf("moving average filtering enabled\r\n");
     return COMMAND_HANDLER_OK;
 }
 
 static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]) {
-    adc_filter_set_mode(&pot_filter, ADC_FILTER_NOISE);
-    adc_filter_set_mode(&ntc_filter, ADC_FILTER_NOISE);
+    adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_ADD_NOISE);
+    adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_ADD_NOISE);
     printf("noise injection enabled\r\n");
     return COMMAND_HANDLER_OK;
 }
