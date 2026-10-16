@@ -26,10 +26,15 @@ enum CliInitStatus cli_init(struct Cli *self, char *storage, size_t storage_size
  * Meant to be called from the UART RX interrupt, one byte at a time.
  * A backspace ('\b') removes the last character instead of being stored.
  *
+ * While a line is ready (self->status is CLI_FEED_EXECUTABLE), every byte is
+ * dropped until cli_execute() or cli_reset() empties the line: the line
+ * cannot change while it is waiting for, or under, execution.
+ *
  * \param self The Cli instance.
  * \param byte The received byte.
  * \return The new status, also stored in self->status:
- *         CLI_FEED_EXECUTABLE if, after handling byte, the line ends with CR or LF,
+ *         CLI_FEED_EXECUTABLE if a line was already ready (byte dropped), or if,
+ *         after handling byte, the line ends with CR or LF,
  *         CLI_FEED_UPDATED if byte was handled and the line does not end with CR or LF
  *         (also returned for a backspace on an empty line, which changes nothing),
  *         CLI_FEED_NOT_CHANGED if the line is full and byte was dropped (CR and LF included),

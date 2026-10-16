@@ -49,6 +49,9 @@ enum CliFeedStatus cli_feed(struct Cli *self, char byte) {
     if (self == NULL) {
         return CLI_FEED_SELF_IS_NULL;
     }
+    if (self->status == CLI_FEED_EXECUTABLE) {
+        return CLI_FEED_EXECUTABLE;
+    }
     const enum CommandBufferStatus status = command_buffer_append(&self->buffer, byte);
     if (status != COMMAND_BUFFER_OK) {
         /* TODO: passthrough buffer errors */

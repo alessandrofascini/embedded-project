@@ -211,7 +211,6 @@ static void prv_state_not_initialized(void) {
 }
 
 static void prv_state_cli(void) {
-    HAL_Delay(100);
     if (cli.status == CLI_FEED_EMPTY) {
         printf("> ");
         fflush(stdout);
