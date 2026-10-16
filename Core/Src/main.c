@@ -31,8 +31,6 @@
 #include "float-format-api.h"
 #include "ntc-api.h"
 #include "cli-api.h"
-#include "command-buffer-api.h"
-#include "command-executor-api.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -132,22 +130,17 @@ int main(void) {
     MX_ADC1_Init();
     MX_USART2_UART_Init();
     /* USER CODE BEGIN 2 */
-    struct CommandBuffer command_buffer;
-    char command_buffer_storage[CLI_LINE_MAX_LENGTH];
-    /* TODO: handle initialization errors */
-    command_buffer_init(&command_buffer, command_buffer_storage, CLI_LINE_MAX_LENGTH);
-
-    struct CommandExecutor command_executor;
-    const struct Command commands[] = {
+    /* static: cli keeps pointers to both for the whole program lifetime */
+    static char cli_storage[CLI_LINE_MAX_LENGTH];
+    static const struct Command cli_commands[] = {
         { "help", prv_command_help },
         { "raw", prv_command_raw },
         { "avg", prv_command_avg },
         { "noise", prv_command_noise },
     };
+    const size_t cli_commands_length = sizeof(cli_commands) / sizeof(cli_commands[0]);
     /* TODO: handle initialization errors */
-    command_executor_init(&command_executor, commands, sizeof(commands) / sizeof(commands[0]));
-
-    cli_init(&cli, &command_buffer, &command_executor);
+    cli_init(&cli, cli_storage, sizeof(cli_storage), cli_commands, cli_commands_length);
 
     current_state = prv_state_streaming;
 

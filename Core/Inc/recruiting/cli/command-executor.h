@@ -3,20 +3,44 @@
 
 #include <stddef.h>
 
+/*!
+ * \brief Maximum number of tokens in a line, command name included.
+ */
 #define COMMAND_EXECUTOR_MAX_ARGS (4)
 
+/*!
+ * \brief Result returned by a command handler.
+ */
 enum CommandHandlerStatus {
     COMMAND_HANDLER_OK = 0,            /*!< Arguments accepted and command performed. */
     COMMAND_HANDLER_INVALID_ARGS = -1, /*!< Arguments missing, extra or malformed. */
 };
 
+/*!
+ * \brief Function implementing a command.
+ *
+ * argv[0] is the command name itself. The argv strings point into the line
+ * being executed and are only valid for the duration of the call.
+ * A handler returning COMMAND_HANDLER_INVALID_ARGS is responsible for
+ * reporting the problem to the user: the caller does not print anything.
+ *
+ * \param argc Number of tokens in argv (at least 1).
+ * \param argv The tokens of the line.
+ * \return COMMAND_HANDLER_OK, or COMMAND_HANDLER_INVALID_ARGS.
+ */
 typedef enum CommandHandlerStatus (*command_handler_fn)(int argc, char *argv[]);
 
+/*!
+ * \brief Entry of a command table: a command name and its handler.
+ */
 struct Command {
     char *grammar;              /*!< Command name, matched against argv[0] as a whole token. */
     command_handler_fn handler; /*!< Function called when the name matches. */
 };
 
+/*!
+ * \brief Result codes for the command executor functions.
+ */
 enum CommandExecutorStatus {
     COMMAND_EXECUTOR_OK = 0,                 /*!< Success. */
     COMMAND_EXECUTOR_SELF_IS_NULL = -1,      /*!< self is NULL. */
@@ -29,6 +53,9 @@ enum CommandExecutorStatus {
     COMMAND_EXECUTOR_INVALID_ARGS = -8,      /*!< The handler returned COMMAND_HANDLER_INVALID_ARGS. */
 };
 
+/*!
+ * \brief Splits a line into tokens and dispatches it to the matching command.
+ */
 struct CommandExecutor {
     const struct Command *commands; /*!< Caller-owned dispatch table, not copied; must outlive self. */
     size_t command_count;           /*!< Number of entries in commands. */

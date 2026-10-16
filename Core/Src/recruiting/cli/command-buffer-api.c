@@ -1,8 +1,8 @@
 /*!
- * \file
+ * \file command-buffer-api.c
  * \author Alessandro Fascini
- *
- * \brief
+ * \brief Implementation of a fixed-size, always NUL-terminated line buffer
+ *        with backspace support.
  */
 
 #include "command-buffer-api.h"

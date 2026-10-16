@@ -1,8 +1,7 @@
 /*!
- * \file
+ * \file command-executor-api.c
  * \author Alessandro Fascini
- *
- * \brief
+ * \brief Implementation of an in-place line tokenizer and table-based command dispatcher.
  */
 
 #include "command-executor-api.h"

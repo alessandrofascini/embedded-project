@@ -1,8 +1,14 @@
 /*!
- * \file
+ * \file cli-api.c
  * \author Alessandro Fascini
+ * \brief Implementation of the CLI facade: line input and command dispatch.
  *
- * \brief
+ * The CLI is split in three parts: a CommandBuffer that collects the bytes of
+ * the line being typed, a CommandExecutor that tokenizes a complete line and
+ * calls the matching handler, and this facade that glues them together and
+ * tracks the line state (enum CliFeedStatus) for whoever renders the prompt.
+ * The modules never perform I/O themselves: receiving bytes and printing are
+ * left to the caller, which keeps them hardware-agnostic and testable on the host.
  */
 
 #include "cli-api.h"
@@ -11,14 +17,32 @@
 
 #include <assert.h>
 
-void cli_init(struct Cli *self, struct CommandBuffer *buffer, struct CommandExecutor *executor) {
-    if (self == NULL || buffer == NULL || executor == NULL) {
-        /* TODO: Improve this */
-        return;
+enum CliInitStatus cli_init(struct Cli *self, char *storage, size_t storage_size, const struct Command *commands, size_t command_count) {
+    if (self == NULL) {
+        return CLI_INIT_SELF_IS_NULL;
     }
+    const enum CommandBufferStatus buffer_status = command_buffer_init(&self->buffer, storage, storage_size);
+    if (buffer_status == COMMAND_BUFFER_IS_NULL) {
+        return CLI_INIT_STORAGE_IS_NULL;
+    }
+    if (buffer_status == COMMAND_BUFFER_NO_CAPACITY) {
+        return CLI_INIT_NO_CAPACITY;
+    }
+    /* COMMAND_BUFFER_SELF_IS_NULL is unreachable: &self->buffer is never NULL. */
+    assert(buffer_status == COMMAND_BUFFER_OK);
+
+    const enum CommandExecutorStatus executor_status = command_executor_init(&self->executor, commands, command_count);
+    if (executor_status == COMMAND_EXECUTOR_COMMANDS_IS_NULL) {
+        return CLI_INIT_COMMANDS_IS_NULL;
+    }
+    if (executor_status == COMMAND_EXECUTOR_INVALID_COMMAND) {
+        return CLI_INIT_INVALID_COMMAND;
+    }
+    /* COMMAND_EXECUTOR_SELF_IS_NULL is unreachable: &self->executor is never NULL. */
+    assert(executor_status == COMMAND_EXECUTOR_OK);
+
     self->status = CLI_FEED_EMPTY;
-    self->buffer = *buffer;
-    self->executor = *executor;
+    return CLI_INIT_OK;
 }
 
 enum CliFeedStatus cli_feed(struct Cli *self, char byte) {
@@ -70,7 +94,7 @@ void cli_reset(struct Cli *self) {
 }
 
 void cli_set_status_unchanged(struct Cli *self) {
-    if (self == NULL) {
+    if (self == NULL || self->status == CLI_FEED_EXECUTABLE) {
         return;
     }
     self->status = CLI_FEED_NOT_CHANGED;
