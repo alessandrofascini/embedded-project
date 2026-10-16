@@ -237,12 +237,6 @@ static void prv_state_cli(void) {
     switch (exec_status) {
         case COMMAND_EXECUTOR_OK:
             return;
-        case COMMAND_EXECUTOR_INVALID_COMMAND:
-            printf("[ERROR] invalid command\r\n");
-            return;
-        case COMMAND_EXECUTOR_LINE_IS_NULL:
-            printf("[ERROR] line is NULL\r\n");
-            return;
         case COMMAND_EXECUTOR_EMPTY_LINE:
             printf("[ERROR] empty line\r\n");
             return;
@@ -253,7 +247,7 @@ static void prv_state_cli(void) {
             printf("[ERROR] command not found\r\n");
             return;
         case COMMAND_EXECUTOR_INVALID_ARGS:
-            printf("[ERROR] invalid args\r\n");
+            /* the param behavior should be defined inside the command handler itself*/
             return;
         default:
             printf("[FATAL] cli_execute: should not be here. Error code: %d\r\n", exec_status);
