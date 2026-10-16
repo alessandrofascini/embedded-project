@@ -265,9 +265,11 @@ static void prv_state_streaming(void) {
 static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]) {
     printf("Available commands:\r\n");
     printf("  help  - Show this help message\r\n");
-    printf("  raw   - Show raw ADC values\r\n");
-    printf("  avg   - Show averaged ADC values\r\n");
-    printf("  noise - Show noise levels\r\n");
+    printf("  raw   - Remove all filters\r\n");
+    printf("  avg   - Add the 150-sample moving average filter\r\n");
+    printf("  noise - Add random noise injection\r\n");
+    printf("Filters stack: avg and noise can be active together.\r\n");
+    printf("Press the user button to go back to streaming.\r\n");
     return COMMAND_HANDLER_OK;
 }
 
