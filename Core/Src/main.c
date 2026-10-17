@@ -240,7 +240,7 @@ static void prv_state_cli(void) {
             printf("[ERROR] command not found\r\n");
             return;
         case COMMAND_EXECUTOR_INVALID_ARGS:
-            /* the param behavior should be defined inside the command handler itself*/
+            /* The handler has already reported the error to the user */
             return;
         default:
             printf("[FATAL] cli_execute: should not be here. Error code: %d\r\n", exec_status);
