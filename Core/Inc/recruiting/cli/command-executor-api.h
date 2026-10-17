@@ -8,7 +8,7 @@
  * \param self          The CommandExecutor instance to initialize.
  * \param commands      Dispatch table; not copied, must outlive self.
  *                      Every entry needs a non-NULL grammar and handler.
- * \param command_count Number of entries in commands (0 is allowed: every line is then not found).
+ * \param command_count Number of entries in commands (0 is allowed: every command is then not found).
  * \return COMMAND_EXECUTOR_OK, COMMAND_EXECUTOR_SELF_IS_NULL,
  *         COMMAND_EXECUTOR_COMMANDS_IS_NULL or COMMAND_EXECUTOR_INVALID_COMMAND.
  */
@@ -18,7 +18,7 @@ enum CommandExecutorStatus command_executor_init(struct CommandExecutor *self, c
  * \brief Split a line into tokens and call the handler whose grammar equals the first one.
  *
  * Tokens are separated by spaces, tabs, CR and LF; the line is modified in
- * place (separators after a token are overwritten with NUL).
+ * place (the first separator after each token is overwritten with NUL).
  *
  * \param self The CommandExecutor instance.
  * \param line The NUL-terminated line to execute.

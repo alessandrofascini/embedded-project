@@ -22,7 +22,7 @@ enum CliInitStatus {
  * \brief State of the line being typed, as seen by whoever renders the CLI.
  *
  * Set by cli_feed() (usually from the UART RX interrupt) and by the other
- * cli_* functions (from the main loop).
+ * cli_* functions, which may also run in interrupt context.
  */
 enum CliFeedStatus {
     CLI_FEED_EMPTY,        /*!< The line was just cleared (init, execute, reset): a new prompt should be shown. */

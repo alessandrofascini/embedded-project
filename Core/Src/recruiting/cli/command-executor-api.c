@@ -76,10 +76,10 @@ enum CommandExecutorStatus command_executor_execute(const struct CommandExecutor
     return COMMAND_EXECUTOR_COMMAND_NOT_FOUND;
 }
 
-/**
- * Check if a character is a separator.
- * @param c The character to check.
- * @return true if the character is a separator, false otherwise.
+/*!
+ * \brief Check if a character separates two tokens (space, tab, CR or LF).
+ * \param c The character to check.
+ * \return true if the character is a separator, false otherwise.
  */
 static bool prv_is_separator(char c) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n';

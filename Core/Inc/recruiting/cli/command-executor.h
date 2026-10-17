@@ -22,11 +22,12 @@ enum CommandHandlerStatus {
  * argv[0] is the command name itself. The argv strings point into the line
  * being executed and are only valid for the duration of the call.
  * A handler returning COMMAND_HANDLER_INVALID_ARGS is responsible for
- * reporting the problem to the user: the caller does not print anything.
+ * reporting the problem to the user: the executor never prints anything.
  *
  * \param argc Number of tokens in argv (at least 1).
- * \param argv The tokens of the line.
- * \return COMMAND_HANDLER_OK, or COMMAND_HANDLER_INVALID_ARGS.
+ * \param argv The tokens of the line; not NULL-terminated, use argc.
+ * \return COMMAND_HANDLER_OK, or COMMAND_HANDLER_INVALID_ARGS
+ *         (any value other than COMMAND_HANDLER_OK is treated as invalid arguments).
  */
 typedef enum CommandHandlerStatus (*command_handler_fn)(int argc, char *argv[]);
 
@@ -50,7 +51,7 @@ enum CommandExecutorStatus {
     COMMAND_EXECUTOR_EMPTY_LINE = -5,        /*!< line contains only separators. */
     COMMAND_EXECUTOR_TOO_MANY_ARGS = -6,     /*!< line has more than COMMAND_EXECUTOR_MAX_ARGS tokens. */
     COMMAND_EXECUTOR_COMMAND_NOT_FOUND = -7, /*!< argv[0] matches no table entry. */
-    COMMAND_EXECUTOR_INVALID_ARGS = -8,      /*!< The handler returned COMMAND_HANDLER_INVALID_ARGS. */
+    COMMAND_EXECUTOR_INVALID_ARGS = -8,      /*!< The handler returned anything other than COMMAND_HANDLER_OK. */
 };
 
 /*!
