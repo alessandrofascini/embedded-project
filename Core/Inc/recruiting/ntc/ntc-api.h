@@ -22,7 +22,7 @@ enum NtcError {
 };
 
 /*!
- * \brief Initialize an NTC instance to its empty state with the given circuit parameters.
+ * \brief Initialize an Ntc instance to its empty state with the given circuit parameters.
  * \param self      Instance to initialize.
  * \param r_pullup  Divider pull-up/series resistor, ohms.
  * \param r0        NTC nominal resistance at t0_kelvin, ohms.
@@ -30,7 +30,7 @@ enum NtcError {
  * \param beta      Beta coefficient, kelvin.
  * \return NTC_OK on success, or one of the other enum NtcError values on failure.
  */
-enum NtcError ntc_init(struct NTC *self, const float r_pullup, const float r0, const float t0_kelvin, const float beta);
+enum NtcError ntc_init(struct Ntc *self, const float r_pullup, const float r0, const float t0_kelvin, const float beta);
 
 /*!
  * \brief Convert a raw ADC value to a temperature in degrees Celsius.
@@ -38,6 +38,6 @@ enum NtcError ntc_init(struct NTC *self, const float r_pullup, const float r0, c
  * \param raw_adc Raw ADC value.
  * \return Temperature in degrees Celsius, or NAN if the instance is NULL, or INFINITY if the raw ADC value is 0 or NTC_ADC_MAX_VALUE.
  */
-float ntc_raw_adc_to_celsius(const struct NTC *self, const uint16_t raw_adc);
+float ntc_raw_adc_to_celsius(const struct Ntc *self, const uint16_t raw_adc);
 
 #endif

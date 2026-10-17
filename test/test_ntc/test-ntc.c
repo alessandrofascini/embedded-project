@@ -19,7 +19,7 @@ void tearDown(void) {
 }
 
 void testNtcInit(void) {
-    struct NTC ntc;
+    struct Ntc ntc;
     const float r_pullup = 10000.0f; // 10k ohm pull-up resistor
     const float r0 = 10000.0f;       // 10k ohm nominal resistance at t0_kelvin
     const float t0_kelvin = 298.15f; // 25 degC in kelvin
@@ -41,7 +41,7 @@ void testNtcInit(void) {
 }
 
 void testNtcRawAdcToCelsius(void) {
-    struct NTC ntc;
+    struct Ntc ntc;
 
     TEST_ASSERT_EQUAL_FLOAT(NAN, ntc_raw_adc_to_celsius(NULL, 0));
     TEST_ASSERT_EQUAL_FLOAT(INFINITY, ntc_raw_adc_to_celsius(&ntc, 0));

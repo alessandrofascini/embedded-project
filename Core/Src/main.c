@@ -72,11 +72,11 @@ static uint16_t dma_buffer[DMA_BUFFER_SIZE];
 
 /*! Potentiometer instances */
 static struct AdcFilter pot_filter;
-static struct NTC pot;
+static struct Ntc pot;
 
 /*! NTC instances */
 static struct AdcFilter ntc_filter;
-static struct NTC ntc;
+static struct Ntc ntc;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/

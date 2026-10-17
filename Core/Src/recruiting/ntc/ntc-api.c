@@ -11,7 +11,7 @@
 
 #define KELVIN_TO_CELSIUS_OFFSET (273.15f)
 
-enum NtcError ntc_init(struct NTC *self, const float r_pullup, const float r0, const float t0_kelvin, const float beta) {
+enum NtcError ntc_init(struct Ntc *self, const float r_pullup, const float r0, const float t0_kelvin, const float beta) {
     // TODO: too many parameters - consider refactoring
     if (self == NULL) {
         return NTC_SELF_IS_NULL;
@@ -37,12 +37,12 @@ enum NtcError ntc_init(struct NTC *self, const float r_pullup, const float r0, c
     return NTC_OK;
 }
 
-static float prv_adc_to_resistance(const struct NTC *self, const uint16_t raw_adc) {
+static float prv_adc_to_resistance(const struct Ntc *self, const uint16_t raw_adc) {
     // TODO: make NTC_ADC_MAX_VALUE a parameter of the NTC struct, or pass it as an argument to this function
     return self->r_pullup * (NTC_ADC_MAX_VALUE / (float)raw_adc - 1.0f);
 }
 
-static float prv_raw_adc_to_kelvin(const struct NTC *self, const float resistance) {
+static float prv_raw_adc_to_kelvin(const struct Ntc *self, const float resistance) {
     // TODO: after initialization, precompute 1/t0_kelvin and 1/beta to avoid repeated divisions
     const float inverse_t0 = 1.0f / self->t0_kelvin;
     const float inverse_beta = 1.0f / self->beta;
@@ -50,7 +50,7 @@ static float prv_raw_adc_to_kelvin(const struct NTC *self, const float resistanc
     return 1.0f / (inverse_t0 + inverse_beta * ln_r_ratio);
 }
 
-float ntc_raw_adc_to_celsius(const struct NTC *self, const uint16_t raw_adc) {
+float ntc_raw_adc_to_celsius(const struct Ntc *self, const uint16_t raw_adc) {
     if (self == NULL) {
         return NAN;
     }
