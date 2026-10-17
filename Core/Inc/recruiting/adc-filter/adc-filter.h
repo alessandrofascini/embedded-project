@@ -1,3 +1,9 @@
+/*!
+ * \file adc-filter.h
+ * \author Alessandro Fascini
+ * \brief Types of the ADC filter: the AdcFilter instance, its modes (states), events and error codes.
+ */
+
 #ifndef RECRUITING_ADC_FILTER_H
 #define RECRUITING_ADC_FILTER_H
 

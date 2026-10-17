@@ -1,3 +1,9 @@
+/*!
+ * \file adc-moving-average-api.h
+ * \author Alessandro Fascini
+ * \brief API of a moving-average filter over a caller-provided window of ADC samples.
+ */
+
 #ifndef RECRUITING_ADC_MOVING_AVERAGE_API_H
 #define RECRUITING_ADC_MOVING_AVERAGE_API_H
 

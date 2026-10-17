@@ -1,3 +1,9 @@
+/*!
+ * \file command-buffer-api.h
+ * \author Alessandro Fascini
+ * \brief API of the command buffer: a fixed-size line with backspace support.
+ */
+
 #ifndef RECRUITING_COMMAND_BUFFER_API_H
 #define RECRUITING_COMMAND_BUFFER_API_H
 

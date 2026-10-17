@@ -1,3 +1,9 @@
+/*!
+ * \file command-executor.h
+ * \author Alessandro Fascini
+ * \brief Types of the command executor: command table entries, handler signature and status codes.
+ */
+
 #ifndef RECRUITING_COMMAND_EXECUTOR_H
 #define RECRUITING_COMMAND_EXECUTOR_H
 

@@ -1,3 +1,9 @@
+/*!
+ * \file ntc.h
+ * \author Alessandro Fascini
+ * \brief Types of the NTC thermistor model: the NTC instance.
+ */
+
 #ifndef RECRUITING_NTC_H
 #define RECRUITING_NTC_H
 

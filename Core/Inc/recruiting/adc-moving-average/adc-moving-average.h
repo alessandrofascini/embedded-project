@@ -1,3 +1,9 @@
+/*!
+ * \file adc-moving-average.h
+ * \author Alessandro Fascini
+ * \brief Types of the moving average: the AdcMovingAverage instance.
+ */
+
 #ifndef RECRUITING_ADC_MOVING_AVERAGE_H
 #define RECRUITING_ADC_MOVING_AVERAGE_H
 

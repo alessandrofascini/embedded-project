@@ -1,3 +1,9 @@
+/*!
+ * \file ntc-api.h
+ * \author Alessandro Fascini
+ * \brief API of an NTC thermistor: conversion of raw ADC readings to degrees Celsius with the Beta model.
+ */
+
 #ifndef RECRUITING_NTC_API_H
 #define RECRUITING_NTC_API_H
 

@@ -1,3 +1,9 @@
+/*!
+ * \file float-format-api.h
+ * \author Alessandro Fascini
+ * \brief API of a float to fixed one-decimal string formatter.
+ */
+
 #ifndef RECRUITING_FLOAT_FORMAT_API_H
 #define RECRUITING_FLOAT_FORMAT_API_H
 

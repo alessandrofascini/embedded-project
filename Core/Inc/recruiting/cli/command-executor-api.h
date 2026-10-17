@@ -1,3 +1,9 @@
+/*!
+ * \file command-executor-api.h
+ * \author Alessandro Fascini
+ * \brief API of the command executor: line tokenizing and dispatch to a command table.
+ */
+
 #ifndef RECRUITING_COMMAND_EXECUTOR_API_H
 #define RECRUITING_COMMAND_EXECUTOR_API_H
 

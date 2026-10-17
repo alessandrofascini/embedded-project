@@ -1,3 +1,9 @@
+/*!
+ * \file cli.h
+ * \author Alessandro Fascini
+ * \brief Types of the CLI: the Cli instance and its status codes.
+ */
+
 #ifndef RECRUITING_CLI_H
 #define RECRUITING_CLI_H
 

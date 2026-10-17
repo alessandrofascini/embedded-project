@@ -1,3 +1,9 @@
+/*!
+ * \file adc-filter-api.h
+ * \author Alessandro Fascini
+ * \brief API of the ADC filter: a per-channel state machine combining noise injection and a moving average.
+ */
+
 #ifndef RECRUITING_ADC_FILTER_API_H
 #define RECRUITING_ADC_FILTER_API_H
 

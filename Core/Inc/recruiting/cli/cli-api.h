@@ -1,3 +1,9 @@
+/*!
+ * \file cli-api.h
+ * \author Alessandro Fascini
+ * \brief Public API of the CLI: initialization, byte input and command execution.
+ */
+
 #ifndef RECRUITING_CLI_API_H
 #define RECRUITING_CLI_API_H
 

@@ -1,3 +1,9 @@
+/*!
+ * \file command-buffer.h
+ * \author Alessandro Fascini
+ * \brief Types of the command buffer: the CommandBuffer instance and its status codes.
+ */
+
 #ifndef RECRUITING_COMMAND_BUFFER_H
 #define RECRUITING_COMMAND_BUFFER_H
 
