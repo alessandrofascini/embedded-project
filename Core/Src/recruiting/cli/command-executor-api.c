@@ -8,7 +8,6 @@
 
 #include <stdbool.h>
 #include <string.h>
-#include <assert.h>
 
 static bool prv_is_separator(char c);
 

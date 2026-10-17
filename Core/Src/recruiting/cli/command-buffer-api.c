@@ -24,7 +24,7 @@ enum CommandBufferStatus command_buffer_init(struct CommandBuffer *self, char *b
     }
     self->buffer = buffer;
     self->length = capacity - 1;
-    self->buffer[self->length] = COMMAND_BUFFER_TERMINATOR_END_OF_LINE; // Ensure null-termination
+    self->buffer[self->length] = COMMAND_BUFFER_TERMINATOR_END_OF_LINE; /* Ensure null-termination */
     self->index = 0;
     self->buffer[0] = COMMAND_BUFFER_TERMINATOR_END_OF_LINE;
     return COMMAND_BUFFER_OK;
