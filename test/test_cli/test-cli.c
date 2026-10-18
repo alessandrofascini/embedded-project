@@ -169,6 +169,25 @@ void testCliExecute(void) {
     prv_feed_string(&cli, "echo a b c d\r");
     TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_TOO_MANY_ARGS, cli_execute(&cli));
     TEST_ASSERT_EQUAL(3, command_echo_fake.call_count);
+
+    prv_feed_string(&cli, " \t\r");
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_EMPTY_LINE, cli_execute(&cli));
+
+    prv_feed_string(&cli, "nope\r");
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_COMMAND_NOT_FOUND, cli_execute(&cli));
+
+    prv_feed_string(&cli, "ech\r");
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_COMMAND_NOT_FOUND, cli_execute(&cli));
+    prv_feed_string(&cli, "echoo\r");
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_COMMAND_NOT_FOUND, cli_execute(&cli));
+
+    TEST_ASSERT_EQUAL(3, command_echo_fake.call_count);
+
+    command_echo_fake.custom_fake = NULL;
+    command_echo_fake.return_val = COMMAND_HANDLER_INVALID_ARGS;
+    prv_feed_string(&cli, "echo\r");
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_INVALID_ARGS, cli_execute(&cli));
+    TEST_ASSERT_EQUAL(4, command_echo_fake.call_count);
 }
 
 int main(void) {
