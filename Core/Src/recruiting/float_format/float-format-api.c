@@ -24,7 +24,7 @@ enum FloatFormatError float_to_string(float value, char *buffer, uint16_t buffer
     }
     int integer_part = (int)(value * 10);
     buffer[0] = '\0';
-    buffer[1] = '0' + (integer_part % 10);
+    buffer[1] = (char)('0' + (integer_part % 10));
     integer_part /= 10;
     buffer[2] = '.';
     int i = 2;
@@ -33,7 +33,7 @@ enum FloatFormatError float_to_string(float value, char *buffer, uint16_t buffer
         if (i >= buffer_size) {
             return FLOAT_FORMAT_ERR_OVERFLOW;
         }
-        buffer[i] = '0' + (integer_part % 10);
+        buffer[i] = (char)('0' + (integer_part % 10));
         integer_part /= 10;
     }
     if (buffer[i] == '.') {
