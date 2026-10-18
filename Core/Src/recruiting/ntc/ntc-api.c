@@ -30,24 +30,33 @@ enum NtcError ntc_init(struct Ntc *self, const float r_pullup, const float r0, c
         return NTC_INVALID_BETA;
     }
 
-    self->r_pullup = r_pullup;
-    self->r0 = r0;
-    self->t0_kelvin = t0_kelvin;
-    self->beta = beta;
+    /* Beta model, with R = r_pullup * ratio and ratio = NTC_ADC_MAX_VALUE / raw - 1:
+     *   1/T = 1/t0 + ln(R / r0) / beta
+     *       = [1/t0 + ln(r_pullup / r0) / beta] + ln(ratio) / beta
+     * The bracket does not depend on the reading, so it is computed once here. */
+    self->inverse_beta = 1.0f / beta;
+    self->inverse_t_offset = 1.0f / t0_kelvin + logf(r_pullup / r0) * self->inverse_beta;
     return NTC_OK;
 }
 
-static float prv_adc_to_resistance(const struct Ntc *self, const uint16_t raw_adc) {
+/*!
+ * \brief Divider ratio R / r_pullup for a raw ADC reading.
+ * \param raw_adc Raw ADC reading, in (0, NTC_ADC_MAX_VALUE).
+ * \return NTC_ADC_MAX_VALUE / raw_adc - 1.
+ */
+static inline float prv_adc_to_divider_ratio(const uint16_t raw_adc) {
     // TODO: make NTC_ADC_MAX_VALUE a parameter of the NTC struct, or pass it as an argument to this function
-    return self->r_pullup * (NTC_ADC_MAX_VALUE / (float)raw_adc - 1.0f);
+    return NTC_ADC_MAX_VALUE / (float)raw_adc - 1.0f;
 }
 
-static float prv_raw_adc_to_kelvin(const struct Ntc *self, const float resistance) {
-    // TODO: after initialization, precompute 1/t0_kelvin and 1/beta to avoid repeated divisions
-    const float inverse_t0 = 1.0f / self->t0_kelvin;
-    const float inverse_beta = 1.0f / self->beta;
-    const float ln_r_ratio = logf(resistance / self->r0);
-    return 1.0f / (inverse_t0 + inverse_beta * ln_r_ratio);
+/*!
+ * \brief Temperature for a given divider ratio, using the precomputed Beta model terms.
+ * \param self  NTC instance to use.
+ * \param ratio Divider ratio, from prv_adc_to_divider_ratio().
+ * \return Temperature in kelvin.
+ */
+static inline float prv_divider_ratio_to_kelvin(const struct Ntc *self, const float ratio) {
+    return 1.0f / (self->inverse_t_offset + self->inverse_beta * logf(ratio));
 }
 
 float ntc_raw_adc_to_celsius(const struct Ntc *self, const uint16_t raw_adc) {
@@ -57,8 +66,8 @@ float ntc_raw_adc_to_celsius(const struct Ntc *self, const uint16_t raw_adc) {
     if (raw_adc == 0 || raw_adc >= NTC_ADC_MAX_VALUE) {
         return INFINITY; // Open circuit
     }
-    const float resistance = prv_adc_to_resistance(self, raw_adc);
-    const float kelvin = prv_raw_adc_to_kelvin(self, resistance);
+    const float ratio = prv_adc_to_divider_ratio(raw_adc);
+    const float kelvin = prv_divider_ratio_to_kelvin(self, ratio);
     if (isnan(kelvin)) {
         return NAN;
     }
