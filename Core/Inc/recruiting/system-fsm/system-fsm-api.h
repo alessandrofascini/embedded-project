@@ -9,4 +9,8 @@
 
 #include "system-fsm.h"
 
+enum SystemFsmStatus system_fsm_init(struct SystemFsm *self);
+
+enum SystemFsmStatus system_fsm_run(struct SystemFsm *self);
+
 #endif
