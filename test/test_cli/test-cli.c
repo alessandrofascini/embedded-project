@@ -10,27 +10,44 @@
 
 #include "unity.h"
 #include "cli-api.h"
+#include "fff.h"
+
+#include <string.h>
+
+DEFINE_FFF_GLOBALS;
+FAKE_VALUE_FUNC(enum CommandHandlerStatus, command_echo, int, char **);
 
 #define TEST_STORAGE_SIZE (16) /* longest line: 15 characters */
 
-/*!
- * \brief Handler that always accepts its arguments.
- * \param argc Unused.
- * \param argv Unused.
- * \return COMMAND_HANDLER_OK.
- */
-static enum CommandHandlerStatus prv_command_echo(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-    return COMMAND_HANDLER_OK;
-}
-
 static const struct Command commands[] = {
-    { "echo", prv_command_echo },
+    { "echo", command_echo },
 };
 static const size_t command_count = sizeof(commands) / sizeof(commands[0]);
 
+static char echo_argv[COMMAND_EXECUTOR_MAX_ARGS][TEST_STORAGE_SIZE];
+
+static enum CommandHandlerStatus prv_copy_args(int argc, char *argv[]) {
+    for (int i = 0; i < argc; i++) {
+        strncpy(echo_argv[i], argv[i], TEST_STORAGE_SIZE - 1);
+    }
+    return COMMAND_HANDLER_OK;
+}
+
+/*!
+ * \brief Feed a whole string to the CLI, one byte at a time.
+ * \param cli  The Cli instance.
+ * \param text The bytes to feed.
+ */
+static void prv_feed_string(struct Cli *cli, const char *text) {
+    for (int i = 0; text[i] != '\0'; i++) {
+        cli_feed(cli, text[i]);
+    }
+}
+
 void setUp(void) {
+    RESET_FAKE(command_echo);
+    FFF_RESET_HISTORY();
+    memset(echo_argv, 0, sizeof(echo_argv));
 }
 
 void tearDown(void) {
@@ -45,7 +62,7 @@ void testCliInit(void) {
     TEST_ASSERT_EQUAL(CLI_INIT_NO_CAPACITY, cli_init(&cli, storage, 0, commands, command_count));
     TEST_ASSERT_EQUAL(CLI_INIT_COMMANDS_IS_NULL, cli_init(&cli, storage, TEST_STORAGE_SIZE, NULL, command_count));
 
-    const struct Command no_grammar[] = { { NULL, prv_command_echo } };
+    const struct Command no_grammar[] = { { NULL, command_echo } };
     TEST_ASSERT_EQUAL(CLI_INIT_INVALID_COMMAND, cli_init(&cli, storage, TEST_STORAGE_SIZE, no_grammar, 1));
 
     const struct Command no_handler[] = { { "echo", NULL } };
@@ -106,9 +123,49 @@ void testCliFeed(void) {
     TEST_ASSERT_EQUAL_STRING("aaaaaaaaaaaaaab", cli_get_command(&cli));
 }
 
+void testCliExecute(void) {
+    command_echo_fake.custom_fake = prv_copy_args;
+
+    struct Cli cli;
+    char storage[TEST_STORAGE_SIZE];
+
+    cli_init(&cli, storage, TEST_STORAGE_SIZE, commands, command_count);
+
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_SELF_IS_NULL, cli_execute(NULL));
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_LINE_NOT_READY, cli_execute(&cli));
+
+    /* Without Enter the line is not ready: refused, and kept as it is */
+
+    prv_feed_string(&cli, "echo a bc");
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_LINE_NOT_READY, cli_execute(&cli));
+    TEST_ASSERT_EQUAL_STRING("echo a bc", cli_get_command(&cli));
+    TEST_ASSERT_EQUAL(0, command_echo_fake.call_count);
+
+    cli_feed(&cli, '\r');
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_OK, cli_execute(&cli));
+    TEST_ASSERT_EQUAL(1, command_echo_fake.call_count);
+    TEST_ASSERT_EQUAL(3, command_echo_fake.arg0_val);
+    TEST_ASSERT_EQUAL_STRING("echo", echo_argv[0]);
+    TEST_ASSERT_EQUAL_STRING("a", echo_argv[1]);
+    TEST_ASSERT_EQUAL_STRING("bc", echo_argv[2]);
+
+    TEST_ASSERT_EQUAL(CLI_FEED_EMPTY, cli.status);
+    TEST_ASSERT_EQUAL_STRING("", cli_get_command(&cli));
+
+    /* Leading, repeated and mixed spaces and tabs are all skipped */
+    memset(echo_argv, 0, sizeof(echo_argv));
+    prv_feed_string(&cli, " \techo \t a  \r");
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_OK, cli_execute(&cli));
+    TEST_ASSERT_EQUAL(2, command_echo_fake.call_count);
+    TEST_ASSERT_EQUAL(2, command_echo_fake.arg0_val);
+    TEST_ASSERT_EQUAL_STRING("echo", echo_argv[0]);
+    TEST_ASSERT_EQUAL_STRING("a", echo_argv[1]);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(testCliInit);
     RUN_TEST(testCliFeed);
+    RUN_TEST(testCliExecute);
     return UNITY_END();
 }
