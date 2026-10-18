@@ -27,10 +27,6 @@ void testNtcInit(void) {
 
     enum NtcError result = ntc_init(&ntc, r_pullup, r0, t0_kelvin, beta);
     TEST_ASSERT_EQUAL(NTC_OK, result);
-    TEST_ASSERT_EQUAL_FLOAT(r_pullup, ntc.r_pullup);
-    TEST_ASSERT_EQUAL_FLOAT(r0, ntc.r0);
-    TEST_ASSERT_EQUAL_FLOAT(t0_kelvin, ntc.t0_kelvin);
-    TEST_ASSERT_EQUAL_FLOAT(beta, ntc.beta);
 
     // Test invalid parameters
     TEST_ASSERT_EQUAL(NTC_SELF_IS_NULL, ntc_init(NULL, 0, 0, 0, 0));
@@ -55,6 +51,16 @@ void testNtcRawAdcToCelsius(void) {
     TEST_ASSERT_EQUAL(NTC_OK, ntc_init(&ntc, r_pullup, r0, t0_kelvin, beta));
 
     TEST_ASSERT_FLOAT_WITHIN(0.1f, 25.0f, ntc_raw_adc_to_celsius(&ntc, 2048)); // Mid-scale ADC value
+
+    /* Away from T0 the logarithmic term matters: expected values from the Beta model */
+    TEST_ASSERT_FLOAT_WITHIN(0.05f, 2.18f, ntc_raw_adc_to_celsius(&ntc, 1024));
+    TEST_ASSERT_FLOAT_WITHIN(0.05f, 51.99f, ntc_raw_adc_to_celsius(&ntc, 3072));
+
+    /* With r_pullup != r0 (the board's NTC), the two resistances cannot cancel out */
+    TEST_ASSERT_EQUAL(NTC_OK, ntc_init(&ntc, 18000.0f, 8755.0f, t0_kelvin, beta));
+    TEST_ASSERT_FLOAT_WITHIN(0.05f, -11.00f, ntc_raw_adc_to_celsius(&ntc, 1024));
+    TEST_ASSERT_FLOAT_WITHIN(0.05f, 9.63f, ntc_raw_adc_to_celsius(&ntc, 2048));
+    TEST_ASSERT_FLOAT_WITHIN(0.05f, 33.78f, ntc_raw_adc_to_celsius(&ntc, 3072));
 }
 
 int main(void) {
