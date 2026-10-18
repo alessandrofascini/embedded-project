@@ -190,10 +190,34 @@ void testCliExecute(void) {
     TEST_ASSERT_EQUAL(4, command_echo_fake.call_count);
 }
 
+void testCliReset(void) {
+    struct Cli cli;
+    char storage[TEST_STORAGE_SIZE];
+
+    cli_init(&cli, storage, TEST_STORAGE_SIZE, commands, command_count);
+
+    /* NULL: nothing happens (no return value, it must just not crash) */
+    cli_reset(NULL);
+
+    /* A half-typed line is dropped */
+    prv_feed_string(&cli, "ech");
+    cli_reset(&cli);
+    TEST_ASSERT_EQUAL(CLI_FEED_EMPTY, cli.status);
+    TEST_ASSERT_EQUAL_STRING("", cli_get_command(&cli));
+
+    /* A ready line is dropped too, and the CLI accepts input again */
+    prv_feed_string(&cli, "echo\r");
+    cli_reset(&cli);
+    TEST_ASSERT_EQUAL(CLI_FEED_EMPTY, cli.status);
+    TEST_ASSERT_EQUAL(CLI_FEED_UPDATED, cli_feed(&cli, 'e'));
+    TEST_ASSERT_EQUAL(0, command_echo_fake.call_count);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(testCliInit);
     RUN_TEST(testCliFeed);
     RUN_TEST(testCliExecute);
+    RUN_TEST(testCliReset);
     return UNITY_END();
 }
