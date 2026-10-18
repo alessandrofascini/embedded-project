@@ -58,6 +58,7 @@ enum CommandExecutorStatus {
     COMMAND_EXECUTOR_TOO_MANY_ARGS = -6,     /*!< line has more than COMMAND_EXECUTOR_MAX_ARGS tokens. */
     COMMAND_EXECUTOR_COMMAND_NOT_FOUND = -7, /*!< argv[0] matches no table entry. */
     COMMAND_EXECUTOR_INVALID_ARGS = -8,      /*!< The handler returned anything other than COMMAND_HANDLER_OK. */
+    COMMAND_EXECUTOR_LINE_NOT_READY = -9,    /*!< The line is not complete yet (only returned by cli_execute()). */
 };
 
 /*!

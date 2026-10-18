@@ -67,8 +67,11 @@ enum CliFeedStatus cli_feed(struct Cli *self, char byte) {
 }
 
 enum CommandExecutorStatus cli_execute(struct Cli *self) {
-    if (self == NULL || self->status != CLI_FEED_EXECUTABLE) {
+    if (self == NULL) {
         return COMMAND_EXECUTOR_SELF_IS_NULL;
+    }
+    if (self->status != CLI_FEED_EXECUTABLE) {
+        return COMMAND_EXECUTOR_LINE_NOT_READY;
     }
     const enum CommandExecutorStatus exec_status = command_executor_execute(&self->executor, self->buffer.buffer);
 

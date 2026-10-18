@@ -55,8 +55,9 @@ enum CliFeedStatus cli_feed(struct Cli *self, char byte);
  * the line is empty and the status is CLI_FEED_EMPTY.
  *
  * \param self The Cli instance.
- * \return The enum CommandExecutorStatus of the execution, or
- *         COMMAND_EXECUTOR_SELF_IS_NULL if self is NULL or no line is ready.
+ * \return The enum CommandExecutorStatus of the execution,
+ *         COMMAND_EXECUTOR_LINE_NOT_READY if no line is ready (the line is kept), or
+ *         COMMAND_EXECUTOR_SELF_IS_NULL if self is NULL.
  */
 enum CommandExecutorStatus cli_execute(struct Cli *self);
 
