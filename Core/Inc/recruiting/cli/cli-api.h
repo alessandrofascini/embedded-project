@@ -21,6 +21,7 @@
  * \param storage_size  Size of storage in bytes, including the terminating NUL
  *                      (the longest line is storage_size - 1 characters).
  * \param commands      Dispatch table; every entry needs a non-NULL grammar and handler.
+ *                      Names are not checked for duplicates: the first matching entry wins.
  * \param command_count Number of entries in commands.
  * \return CLI_INIT_OK on success, or the enum CliInitStatus value describing the first invalid argument.
  */
