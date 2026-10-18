@@ -160,6 +160,15 @@ void testCliExecute(void) {
     TEST_ASSERT_EQUAL(2, command_echo_fake.arg0_val);
     TEST_ASSERT_EQUAL_STRING("echo", echo_argv[0]);
     TEST_ASSERT_EQUAL_STRING("a", echo_argv[1]);
+
+    prv_feed_string(&cli, "echo a b c\r");
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_OK, cli_execute(&cli));
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_MAX_ARGS, command_echo_fake.arg0_val);
+
+    memset(echo_argv, 0, sizeof(echo_argv));
+    prv_feed_string(&cli, "echo a b c d\r");
+    TEST_ASSERT_EQUAL(COMMAND_EXECUTOR_TOO_MANY_ARGS, cli_execute(&cli));
+    TEST_ASSERT_EQUAL(3, command_echo_fake.call_count);
 }
 
 int main(void) {
