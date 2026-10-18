@@ -17,6 +17,10 @@
 #include "adc-moving-average-api.h"
 
 #define ADC_FILTER_LFSR_SEED (0xACE1)
+#define ADC_FILTER_LFSR_TAP_A (2)
+#define ADC_FILTER_LFSR_TAP_B (3)
+#define ADC_FILTER_LFSR_TAP_C (5)
+#define ADC_FILTER_LFSR_MSB (15)
 #define ADC_FILTER_MAX_RAW_VALUE (4095)
 #define ADC_FILTER_NOISE_AMPLITUDE (20)
 #define ADC_FILTER_NOISE_RANGE_SIZE (2 * ADC_FILTER_NOISE_AMPLITUDE + 1)
@@ -141,11 +145,11 @@ static uint16_t prv_mode_average(struct AdcFilter *self, uint16_t raw_sample) {
  */
 static uint16_t prv_lfsr_next(void) {
     uint16_t bit = prv_lfsr_state;
-    bit ^= prv_lfsr_state >> 2;
-    bit ^= prv_lfsr_state >> 3;
-    bit ^= prv_lfsr_state >> 5;
+    bit ^= prv_lfsr_state >> ADC_FILTER_LFSR_TAP_A;
+    bit ^= prv_lfsr_state >> ADC_FILTER_LFSR_TAP_B;
+    bit ^= prv_lfsr_state >> ADC_FILTER_LFSR_TAP_C;
     bit &= 1;
-    prv_lfsr_state = (prv_lfsr_state >> 1) | (bit << 15);
+    prv_lfsr_state = (prv_lfsr_state >> 1) | (bit << ADC_FILTER_LFSR_MSB);
     return prv_lfsr_state;
 }
 
@@ -167,7 +171,8 @@ static uint16_t prv_mode_noise(struct AdcFilter *self, uint16_t raw_sample) {
     const int32_t noisy_sample = ((int32_t)raw_sample) + offset;
     if (noisy_sample < 0) {
         return 0;
-    } else if (noisy_sample > ADC_FILTER_MAX_RAW_VALUE) {
+    }
+    if (noisy_sample > ADC_FILTER_MAX_RAW_VALUE) {
         return ADC_FILTER_MAX_RAW_VALUE;
     }
     return (uint16_t)noisy_sample;

@@ -33,7 +33,7 @@ enum AdcFilterError adc_filter_init(struct AdcFilter *self);
  * \param self  The AdcFilter instance to update.
  * \param event The event to handle.
  */
-void adc_filter_handle_event(struct AdcFilter *self, const enum AdcFilterEvent event);
+void adc_filter_handle_event(struct AdcFilter *self, enum AdcFilterEvent event);
 
 /*!
  * \brief Get the mode of the ADC filter.
@@ -48,6 +48,6 @@ enum AdcFilterMode adc_filter_get_mode(const struct AdcFilter *self);
  * \param raw_sample The raw ADC sample to filter.
  * \return           The filtered ADC sample.
  */
-uint16_t adc_filter_apply(struct AdcFilter *self, const uint16_t raw_sample);
+uint16_t adc_filter_apply(struct AdcFilter *self, uint16_t raw_sample);
 
 #endif

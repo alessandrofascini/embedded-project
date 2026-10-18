@@ -33,11 +33,11 @@ enum CommandBufferStatus command_buffer_clear(struct CommandBuffer *command_buff
  * on an empty line it does nothing.
  *
  * \param command_buffer The CommandBuffer instance.
- * \param c              The character to append.
+ * \param character      The character to append.
  * \return COMMAND_BUFFER_OK, COMMAND_BUFFER_FULL if the line is already full
- *         (c is dropped), or COMMAND_BUFFER_SELF_IS_NULL.
+ *         (character is dropped), or COMMAND_BUFFER_SELF_IS_NULL.
  */
-enum CommandBufferStatus command_buffer_append(struct CommandBuffer *command_buffer, char c);
+enum CommandBufferStatus command_buffer_append(struct CommandBuffer *command_buffer, char character);
 
 /*!
  * \brief Check whether the line ends with a line terminator (CR or LF).

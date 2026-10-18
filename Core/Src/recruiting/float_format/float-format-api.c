@@ -7,6 +7,8 @@
 #include "float-format-api.h"
 #include <math.h>
 
+#define FLOAT_FORMAT_BASE (10)
+
 enum FloatFormatError float_to_string(float value, char *buffer, uint16_t buffer_size) {
     if (isnan(value)) {
         return FLOAT_FORMAT_ERR_NAN;
@@ -22,39 +24,39 @@ enum FloatFormatError float_to_string(float value, char *buffer, uint16_t buffer
         sign = -1;
         value = -value;
     }
-    int integer_part = (int)(value * 10);
+    int integer_part = (int)(value * FLOAT_FORMAT_BASE);
     buffer[0] = '\0';
-    buffer[1] = (char)('0' + (integer_part % 10));
-    integer_part /= 10;
+    buffer[1] = (char)('0' + (integer_part % FLOAT_FORMAT_BASE));
+    integer_part /= FLOAT_FORMAT_BASE;
     buffer[2] = '.';
-    int i = 2;
+    int last = 2;
     while (integer_part > 0) {
-        i++;
-        if (i >= buffer_size) {
+        last++;
+        if (last >= buffer_size) {
             return FLOAT_FORMAT_ERR_OVERFLOW;
         }
-        buffer[i] = (char)('0' + (integer_part % 10));
-        integer_part /= 10;
+        buffer[last] = (char)('0' + (integer_part % FLOAT_FORMAT_BASE));
+        integer_part /= FLOAT_FORMAT_BASE;
     }
-    if (buffer[i] == '.') {
-        i++;
-        if (i == buffer_size) {
+    if (buffer[last] == '.') {
+        last++;
+        if (last == buffer_size) {
             return FLOAT_FORMAT_ERR_OVERFLOW;
         }
-        buffer[i] = '0';
+        buffer[last] = '0';
     }
     if (sign == -1) {
-        i++;
-        if (i == buffer_size) {
+        last++;
+        if (last == buffer_size) {
             return FLOAT_FORMAT_ERR_OVERFLOW;
         }
-        buffer[i] = '-';
+        buffer[last] = '-';
     }
-    for (int j = 0; j < i; j++) {
+    for (int j = 0; j < last; j++) {
         char temp = buffer[j];
-        buffer[j] = buffer[i];
-        buffer[i] = temp;
-        i--;
+        buffer[j] = buffer[last];
+        buffer[last] = temp;
+        last--;
     }
 
     return FLOAT_FORMAT_OK;

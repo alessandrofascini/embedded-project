@@ -33,7 +33,7 @@ enum AdcMovingAverageError adc_moving_average_init(struct AdcMovingAverage *self
  * \param self   Instance previously initialized with adc_moving_average_init().
  * \param sample Raw ADC sample.
  */
-void adc_moving_average_add_sample(struct AdcMovingAverage *self, const uint16_t sample);
+void adc_moving_average_add_sample(struct AdcMovingAverage *self, uint16_t sample);
 
 /*!
  * \brief Get the current moving average of the raw ADC samples.

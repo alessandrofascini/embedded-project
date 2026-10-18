@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-static bool prv_is_separator(char c);
+static bool prv_is_separator(char character);
 
 enum CommandExecutorStatus command_executor_init(struct CommandExecutor *self, const struct Command *commands, size_t command_count) {
     if (self == NULL) {
@@ -77,9 +77,9 @@ enum CommandExecutorStatus command_executor_execute(const struct CommandExecutor
 
 /*!
  * \brief Check if a character separates two tokens (space, tab, CR or LF).
- * \param c The character to check.
+ * \param character The character to check.
  * \return true if the character is a separator, false otherwise.
  */
-static bool prv_is_separator(char c) {
-    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+static bool prv_is_separator(const char character) {
+    return character == ' ' || character == '\t' || character == '\r' || character == '\n';
 }

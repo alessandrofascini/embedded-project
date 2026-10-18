@@ -21,7 +21,7 @@
  *     1/T = inverse_t_offset + inverse_beta * ln(NTC_ADC_MAX_VALUE / raw - 1)
  */
 struct Ntc {
-    float inverse_t_offset; /*!< 1/t0_kelvin + ln(r_pullup / r0) / beta, 1/kelvin. */
+    float inverse_t_offset; /*!< 1/t0_kelvin + ln(r_pullup / r0_ohms) / beta, 1/kelvin. */
     float inverse_beta;     /*!< 1/beta, 1/kelvin. */
 };
 

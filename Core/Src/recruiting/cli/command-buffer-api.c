@@ -39,11 +39,11 @@ enum CommandBufferStatus command_buffer_clear(struct CommandBuffer *command_buff
     return COMMAND_BUFFER_OK;
 }
 
-enum CommandBufferStatus command_buffer_append(struct CommandBuffer *command_buffer, char c) {
+enum CommandBufferStatus command_buffer_append(struct CommandBuffer *command_buffer, char character) {
     if (command_buffer == NULL) {
         return COMMAND_BUFFER_SELF_IS_NULL;
     }
-    if (c == COMMAND_BUFFER_TERMINATOR_BACKSPACE) {
+    if (character == COMMAND_BUFFER_TERMINATOR_BACKSPACE) {
         if (command_buffer->index > 0) {
             command_buffer->buffer[--command_buffer->index] = COMMAND_BUFFER_TERMINATOR_END_OF_LINE;
         }
@@ -52,7 +52,7 @@ enum CommandBufferStatus command_buffer_append(struct CommandBuffer *command_buf
     if (command_buffer->index >= command_buffer->length) {
         return COMMAND_BUFFER_FULL;
     }
-    command_buffer->buffer[command_buffer->index] = c;
+    command_buffer->buffer[command_buffer->index] = character;
     command_buffer->buffer[++command_buffer->index] = COMMAND_BUFFER_TERMINATOR_END_OF_LINE;
     return COMMAND_BUFFER_OK;
 }

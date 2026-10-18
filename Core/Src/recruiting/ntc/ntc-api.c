@@ -9,24 +9,24 @@
 #include <math.h>
 #include <stddef.h>
 
-#define KELVIN_TO_CELSIUS_OFFSET (273.15f)
+#define KELVIN_TO_CELSIUS_OFFSET (273.15F)
 
-enum NtcError ntc_init(struct Ntc *self, const float r_pullup, const float r0, const float t0_kelvin, const float beta) {
+enum NtcError ntc_init(struct Ntc *self, const float r_pullup, const float r0_ohms, const float t0_kelvin, const float beta) {
     // TODO: too many parameters - consider refactoring
     if (self == NULL) {
         return NTC_SELF_IS_NULL;
     }
 
-    if (r_pullup <= 0.0f) {
+    if (r_pullup <= 0.0F) {
         return NTC_INVALID_R_PULLUP;
     }
-    if (r0 <= 0.0f) {
+    if (r0_ohms <= 0.0F) {
         return NTC_INVALID_R0;
     }
-    if (t0_kelvin <= 0.0f) {
+    if (t0_kelvin <= 0.0F) {
         return NTC_INVALID_T0;
     }
-    if (beta <= 0.0f) {
+    if (beta <= 0.0F) {
         return NTC_INVALID_BETA;
     }
 
@@ -34,8 +34,8 @@ enum NtcError ntc_init(struct Ntc *self, const float r_pullup, const float r0, c
      *   1/T = 1/t0 + ln(R / r0) / beta
      *       = [1/t0 + ln(r_pullup / r0) / beta] + ln(ratio) / beta
      * The bracket does not depend on the reading, so it is computed once here. */
-    self->inverse_beta = 1.0f / beta;
-    self->inverse_t_offset = 1.0f / t0_kelvin + logf(r_pullup / r0) * self->inverse_beta;
+    self->inverse_beta = 1.0F / beta;
+    self->inverse_t_offset = 1.0F / t0_kelvin + logf(r_pullup / r0_ohms) * self->inverse_beta;
     return NTC_OK;
 }
 
@@ -46,7 +46,7 @@ enum NtcError ntc_init(struct Ntc *self, const float r_pullup, const float r0, c
  */
 static inline float prv_adc_to_divider_ratio(const uint16_t raw_adc) {
     // TODO: make NTC_ADC_MAX_VALUE a parameter of the NTC struct, or pass it as an argument to this function
-    return NTC_ADC_MAX_VALUE / (float)raw_adc - 1.0f;
+    return NTC_ADC_MAX_VALUE / (float)raw_adc - 1.0F;
 }
 
 /*!
@@ -56,7 +56,7 @@ static inline float prv_adc_to_divider_ratio(const uint16_t raw_adc) {
  * \return Temperature in kelvin.
  */
 static inline float prv_divider_ratio_to_kelvin(const struct Ntc *self, const float ratio) {
-    return 1.0f / (self->inverse_t_offset + self->inverse_beta * logf(ratio));
+    return 1.0F / (self->inverse_t_offset + self->inverse_beta * logf(ratio));
 }
 
 float ntc_raw_adc_to_celsius(const struct Ntc *self, const uint16_t raw_adc) {
