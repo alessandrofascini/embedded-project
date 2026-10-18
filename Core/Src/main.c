@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <assert.h>
+#include "system-fsm-api.h"
 #include "adc-filter-api.h"
 #include "float-format-api.h"
 #include "ntc-api.h"
@@ -35,7 +36,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef void (*state_handler)(void);
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -64,6 +65,8 @@ typedef void (*state_handler)(void);
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+static struct SystemFsm system_fsm;
+
 static uint8_t rx_byte;
 static struct Cli cli;
 
@@ -82,7 +85,6 @@ static struct Ntc ntc;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-static void prv_state_not_initialized(void);
 static void prv_state_cli(void);
 static void prv_state_streaming(void);
 
@@ -95,7 +97,7 @@ static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static volatile state_handler current_state = prv_state_not_initialized;
+
 /* USER CODE END 0 */
 
 /**
@@ -130,6 +132,12 @@ int main(void) {
     MX_ADC1_Init();
     MX_USART2_UART_Init();
     /* USER CODE BEGIN 2 */
+    const enum SystemFsmStatus fsm_status = system_fsm_init(&system_fsm);
+    if (fsm_status != SYSTEM_FSM_OK) {
+        printf("[FATAL] system_fsm_init failed: %d\r\n", fsm_status);
+        Error_Handler();
+    }
+
     /* static: cli keeps pointers to both for the whole program lifetime */
     static char cli_storage[CLI_LINE_MAX_LENGTH];
     static const struct Command cli_commands[] = {
@@ -141,8 +149,6 @@ int main(void) {
     const size_t cli_commands_length = sizeof(cli_commands) / sizeof(cli_commands[0]);
     /* TODO: handle initialization errors */
     cli_init(&cli, cli_storage, sizeof(cli_storage), cli_commands, cli_commands_length);
-
-    current_state = prv_state_streaming;
 
     HAL_UART_Receive_IT(&huart2, &rx_byte, HOW_MANY_BYTES_TO_READ);
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
@@ -161,7 +167,8 @@ int main(void) {
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        current_state();
+        const enum SystemFsmStatus fsm_status = system_fsm_run(&system_fsm);
+        assert(fsm_status == SYSTEM_FSM_OK);
     }
     /* USER CODE END 3 */
 }
@@ -202,12 +209,6 @@ void SystemClock_Config(void) {
 int __io_putchar(int ch) {
     HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
     return ch;
-}
-
-static void prv_state_not_initialized(void) {
-    /* TODO: replace with logger */
-    printf("[WARN] unreachable state reached during startup\r\n");
-    HAL_Delay(2000);
 }
 
 static void prv_state_cli(void) {
@@ -294,20 +295,20 @@ static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]) {
 }
 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin) {
-    if (GPIO_Pin != BTN_Pin || current_state == &prv_state_not_initialized) {
+    if (GPIO_Pin != BTN_Pin /*|| current_state == &prv_state_not_initialized*/) {
         return;
     }
-    if (current_state == &prv_state_streaming) {
-        cli_reset(&cli);
-        current_state = &prv_state_cli;
-    } else {
-        current_state = &prv_state_streaming;
-    }
+    // if (current_state == &prv_state_streaming) {
+    //     cli_reset(&cli);
+    //     current_state = &prv_state_cli;
+    // } else {
+    //     current_state = &prv_state_streaming;
+    // }
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     HAL_UART_Receive_IT(&huart2, &rx_byte, HOW_MANY_BYTES_TO_READ);
-    if (huart != &huart2 || current_state != &prv_state_cli) {
+    if (huart != &huart2 /*|| current_state != &prv_state_cli*/) {
         return;
     }
     cli_feed(&cli, rx_byte);
