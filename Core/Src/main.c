@@ -63,6 +63,11 @@
 
 #define LED_BLINK_TICK_HZ (1000U) /* blink timebase: 1 tick = 1 ms */
 #define LED_DUTY_MAX_PERCENT (100U)
+#define LED_PWM_TICK_HZ (1000000U)   /* breathing timebase: 1 tick = 1 us */
+#define LED_PWM_PERIOD_TICKS (1000U) /* 1 kHz carrier: one update interrupt per millisecond */
+/* the breathing advances once per carrier period (one update interrupt) */
+#define LED_BREATHING_STEP_MS ((LED_PWM_PERIOD_TICKS * 1000U) / LED_PWM_TICK_HZ)
+static_assert(LED_BREATHING_STEP_MS >= 1U, "breathing step must be at least 1 ms: lower the PWM carrier frequency");
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -99,6 +104,15 @@ static const struct LedHardware main_leds[SYSTEM_FSM_LED_COUNT] = {
     [SYSTEM_FSM_LED_BOARD] = { .timer = &htim1, .channel = TIM_CHANNEL_1 },
     [SYSTEM_FSM_LED_EXTERNAL] = { .timer = &htim14, .channel = TIM_CHANNEL_1 },
 };
+
+/* breathing progress of each LED, advanced by its timer update interrupt */
+struct LedBreathing {
+    volatile bool active;
+    volatile uint16_t period_ms;
+    volatile uint16_t phase_ms;
+};
+
+static struct LedBreathing main_breathing[SYSTEM_FSM_LED_COUNT];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -108,8 +122,11 @@ static void prv_cli_print(void);
 static void prv_cli_reset(void);
 
 static uint32_t prv_min(uint32_t a, uint32_t b);
+
 static void prv_led_set_blink(enum SystemFsmLed led, uint16_t period_ms, uint8_t duty_percent);
 static void prv_led_set_breathing(enum SystemFsmLed led, uint16_t period_ms);
+static inline void prv_led_stop_breathing(enum SystemFsmLed led);
+static void prv_led_breathing_step(enum SystemFsmLed led);
 
 static void prv_state_streaming(void);
 
@@ -317,6 +334,7 @@ static void prv_led_set_blink(enum SystemFsmLed led, uint16_t period_ms, uint8_t
     }
     const struct LedHardware *hw = &main_leds[led];
     const uint32_t duty = prv_min(duty_percent, LED_DUTY_MAX_PERCENT);
+    prv_led_stop_breathing(led);
 
     /* unit of time. The 16-bit counter would overflow in ~1.4 ms at 48 MHz,
      * so the clock is divided down to LED_BLINK_TICK_HZ (1 tick = 1 ms).
@@ -337,7 +355,50 @@ static void prv_led_set_blink(enum SystemFsmLed led, uint16_t period_ms, uint8_t
 }
 
 static void prv_led_set_breathing(enum SystemFsmLed led, uint16_t period_ms) {
-    printf("[LED] %d breathing: %u ms\r\n", led, period_ms);
+    assert(led < SYSTEM_FSM_LED_COUNT);
+    assert(period_ms >= 2U);
+    if (led >= SYSTEM_FSM_LED_COUNT || period_ms < 2U) {
+        return; /* the triangle needs at least one millisecond up and one down */
+    }
+    const struct LedHardware *hw = &main_leds[led];
+    struct LedBreathing *breathing = &main_breathing[led];
+
+    /* no interrupt while the breathing state is being rewritten */
+    prv_led_stop_breathing(led);
+    breathing->period_ms = period_ms;
+    breathing->phase_ms = 0U;
+
+    /* fast PWM: the eye sees the duty cycle as brightness, not as blinking */
+    const uint32_t prescaler = HAL_RCC_GetPCLK1Freq() / LED_PWM_TICK_HZ - 1U;
+    __HAL_TIM_SET_PRESCALER(hw->timer, prescaler);
+    __HAL_TIM_SET_AUTORELOAD(hw->timer, LED_PWM_PERIOD_TICKS - 1U);
+    __HAL_TIM_SET_COMPARE(hw->timer, hw->channel, 0U);
+    hw->timer->Instance->EGR = TIM_EGR_UG;
+
+    /* the forced update above also raised the update flag: clear it, or the
+     * interrupt would fire immediately */
+    __HAL_TIM_CLEAR_FLAG(hw->timer, TIM_FLAG_UPDATE);
+    breathing->active = true;
+    __HAL_TIM_ENABLE_IT(hw->timer, TIM_IT_UPDATE);
+}
+
+static inline void prv_led_stop_breathing(enum SystemFsmLed led) {
+    __HAL_TIM_DISABLE_IT(main_leds[led].timer, TIM_IT_UPDATE);
+    main_breathing[led].active = false;
+}
+
+static void prv_led_breathing_step(enum SystemFsmLed led) {
+    struct LedBreathing *breathing = &main_breathing[led];
+    const uint16_t period_ms = breathing->period_ms;
+    const uint16_t half_ms = period_ms / 2U;
+
+    breathing->phase_ms = (breathing->phase_ms + LED_BREATHING_STEP_MS) % period_ms;
+    const uint16_t phase_ms = breathing->phase_ms;
+
+    /* triangle wave: duty rises over the first half of the period, falls over the second */
+    const uint32_t rising_ms = (phase_ms < half_ms) ? phase_ms : (period_ms - phase_ms);
+    const uint32_t duty_ticks = LED_PWM_PERIOD_TICKS * rising_ms / half_ms;
+    __HAL_TIM_SET_COMPARE(main_leds[led].timer, main_leds[led].channel, duty_ticks);
 }
 
 static void prv_state_streaming(void) {
@@ -431,6 +492,15 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     }
     if (system_fsm_is_cli_enabled()) {
         cli_feed(&cli, rx_byte);
+    }
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    /* one update per PWM period (1 ms): advance the breathing of the LED on this timer */
+    for (enum SystemFsmLed led = 0; led < SYSTEM_FSM_LED_COUNT; led++) {
+        if (main_leds[led].timer == htim && main_breathing[led].active) {
+            prv_led_breathing_step(led);
+        }
     }
 }
 
