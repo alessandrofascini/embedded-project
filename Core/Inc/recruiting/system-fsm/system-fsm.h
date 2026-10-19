@@ -7,6 +7,7 @@
 #ifndef RECRUITING_SYSTEM_FSM_H
 #define RECRUITING_SYSTEM_FSM_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "eagletrt-fsm.h"
@@ -23,14 +24,17 @@ enum SystemFsmFatalErrorCode {
 
 typedef enum SystemFsmFatalErrorCode (*system_fsm_self_test)(void);
 typedef uint32_t (*system_fsm_get_tick)(void);
+typedef void (*system_fsm_print_cli)(void);
+typedef void (*system_fsm_reset_cli)(void);
 
 enum SystemFsmStatus {
     SYSTEM_FSM_OK,
     SYSTEM_FSM_SELF_IS_NULL,
     SYSTEM_FSM_INVALID_MACHINE,
     SYSTEM_FSM_INVALID_TRANSITION,
-    SYSTEM_FSM_PORT_IS_NULL,
+    SYSTEM_FSM_SELF_TEST_IS_NULL,
     SYSTEM_FSM_GET_TICK_IS_NULL,
+    SYSTEM_FSM_CLI_IS_NULL,
 };
 
 enum SystemFsmState {
@@ -41,10 +45,12 @@ enum SystemFsmState {
     SYSTEM_FSM_STATE_PAUSED,
     SYSTEM_FSM_STATE_FATAL,
     SYSTEM_FSM_STATE_COUNT,
+    SYSTEM_FSM_STATE_UNKNOWN,
 };
 
-struct SystemFsmPort {
-    system_fsm_self_test self_test;
+struct SystemFsmCli {
+    system_fsm_print_cli print;
+    system_fsm_reset_cli reset;
 };
 
 struct SystemFsmFatal {
@@ -54,7 +60,8 @@ struct SystemFsmFatal {
 
 struct SystemFsm {
     struct FSMHandler handler;
-    const struct SystemFsmPort *port;
+    system_fsm_self_test self_test;
+    const struct SystemFsmCli *cli;
     struct SystemFsmFatal fatal;
     system_fsm_get_tick get_tick;
 };

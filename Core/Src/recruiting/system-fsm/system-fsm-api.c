@@ -14,11 +14,14 @@
 #include <assert.h>
 
 #define SYSTEM_FSM_FATAL_PERIOD_MS (100U)
+#define SYSTEM_FSM_CLI_STATUS_ON (true)
+#define SYSTEM_FSM_CLI_STATUS_OFF (false)
 
 static void prv_go_fatal(struct SystemFsm *self, enum SystemFsmFatalErrorCode code);
 static const char *prv_fatal_message(enum SystemFsmFatalErrorCode code);
 static inline bool prv_has_passed_millis(uint32_t tick, uint32_t last_ms, uint32_t duration_ms);
 static bool prv_has_passed_millis_and_update(struct SystemFsm *self, uint32_t *last_ms, uint32_t duration_ms);
+static inline void prv_enable_cli(const struct SystemFsmCli *cli);
 
 static void prv_routine_post(void *data);
 static void prv_routine_waiting(void *data);
@@ -32,6 +35,8 @@ static void prv_enter_listening(void *data);
 static void prv_enter_warning(void *data);
 static void prv_enter_paused(void *data);
 static void prv_enter_fatal(void *data);
+
+static volatile bool system_fsm_api_cli_status = SYSTEM_FSM_CLI_STATUS_OFF;
 
 static const char *const prv_fatal_messages[SYSTEM_FSM_FATAL_ERROR_COUNT] = {
     [SYSTEM_FSM_FATAL_ERROR_NONE] = "no error",
@@ -117,19 +122,29 @@ enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
     if (self == NULL) {
         return SYSTEM_FSM_SELF_IS_NULL;
     }
-    if (self->port == NULL) {
-        return SYSTEM_FSM_PORT_IS_NULL;
+    if (self->self_test == NULL) {
+        return SYSTEM_FSM_SELF_TEST_IS_NULL;
     }
+
+    if (self->cli == NULL) {
+        return SYSTEM_FSM_CLI_IS_NULL;
+    }
+    assert(self->cli->print != NULL);
+    assert(self->cli->reset != NULL);
+
     if (self->get_tick == NULL) {
         return SYSTEM_FSM_GET_TICK_IS_NULL;
     }
-    self->fatal.error = SYSTEM_FSM_FATAL_ERROR_NONE;
-    self->fatal.last_message_ms = 0;
 
     const enum FSMReturnCode result = fsm_api_init(&self->handler, prv_states, SYSTEM_FSM_STATE_COUNT, SYSTEM_FSM_STATE_POST);
     if (result != FSM_RC_OK) {
         return SYSTEM_FSM_INVALID_MACHINE;
     }
+
+    self->fatal.error = SYSTEM_FSM_FATAL_ERROR_NONE;
+    self->fatal.last_message_ms = 0;
+
+    system_fsm_api_cli_status = SYSTEM_FSM_CLI_STATUS_OFF;
 
     return SYSTEM_FSM_OK;
 }
@@ -143,6 +158,15 @@ enum SystemFsmStatus system_fsm_run(struct SystemFsm *self) {
         return SYSTEM_FSM_INVALID_TRANSITION;
     }
     return SYSTEM_FSM_OK;
+}
+
+enum SystemFsmState system_fsm_get_state(const struct SystemFsm *self) {
+    assert(self != NULL);
+    return fsm_api_get_state(&self->handler);
+}
+
+bool system_fsm_is_cli_enabled(void) {
+    return system_fsm_api_cli_status;
 }
 
 static void prv_go_fatal(struct SystemFsm *self, enum SystemFsmFatalErrorCode code) {
@@ -176,11 +200,17 @@ static bool prv_has_passed_millis_and_update(struct SystemFsm *self, uint32_t *l
     return false;
 }
 
+static inline void prv_enable_cli(const struct SystemFsmCli *cli) {
+    assert(cli != NULL);
+    /* reset first: while the status is still off the UART ISR does not touch the buffer */
+    cli->reset();
+    system_fsm_api_cli_status = SYSTEM_FSM_CLI_STATUS_ON;
+}
+
 static void prv_routine_post(void *data) {
     struct SystemFsm *self = data;
-    const struct SystemFsmPort *port = self->port;
-
-    const enum SystemFsmFatalErrorCode error = port->self_test();
+    assert(self != NULL);
+    const enum SystemFsmFatalErrorCode error = self->self_test();
     if (error != SYSTEM_FSM_FATAL_ERROR_NONE) {
         prv_go_fatal(self, error);
         return;
@@ -190,7 +220,9 @@ static void prv_routine_post(void *data) {
 }
 
 static void prv_routine_waiting(void *data) {
-    printf("[FSM] routine: WAITING\r\n");
+    struct SystemFsm *self = data;
+    assert(self != NULL && self->cli != NULL);
+    self->cli->print();
 }
 
 static void prv_routine_listening(void *data) {
@@ -214,21 +246,25 @@ static void prv_routine_fatal(void *data) {
 }
 
 static void prv_enter_waiting(void *data) {
-    printf("[FSM] enter: WAITING\r\n");
+    const struct SystemFsm *self = data;
+    assert(self != NULL);
+    prv_enable_cli(self->cli);
 }
 
 static void prv_enter_listening(void *data) {
-    printf("[FSM] enter: LISTENING\r\n");
+    system_fsm_api_cli_status = SYSTEM_FSM_CLI_STATUS_OFF;
 }
 
 static void prv_enter_warning(void *data) {
-    printf("[FSM] enter: WARNING\r\n");
+    system_fsm_api_cli_status = SYSTEM_FSM_CLI_STATUS_OFF;
 }
 
 static void prv_enter_paused(void *data) {
-    printf("[FSM] enter: PAUSED\r\n");
+    const struct SystemFsm *self = data;
+    assert(self != NULL);
+    prv_enable_cli(self->cli);
 }
 
 static void prv_enter_fatal(void *data) {
-    /* do nothing */
+    system_fsm_api_cli_status = SYSTEM_FSM_CLI_STATUS_OFF;
 }

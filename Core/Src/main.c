@@ -89,7 +89,9 @@ static struct Ntc ntc;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-static void prv_state_cli(void);
+static void prv_cli_print(void);
+static void prv_cli_reset(void);
+
 static void prv_state_streaming(void);
 
 static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]);
@@ -138,22 +140,6 @@ int main(void) {
     MX_ADC1_Init();
     MX_USART2_UART_Init();
     /* USER CODE BEGIN 2 */
-    static const struct SystemFsmPort system_fsm_port = {
-        .self_test = prv_port_self_test,
-    };
-
-    static struct SystemFsm system_fsm = {
-        .port = &system_fsm_port,
-        .get_tick = HAL_GetTick,
-    };
-
-    enum SystemFsmStatus fsm_status = system_fsm_init(&system_fsm);
-    if (fsm_status != SYSTEM_FSM_OK) {
-        printf("[FATAL] system_fsm_init failed: %d\r\n", fsm_status);
-        Error_Handler();
-    }
-
-    /* static: cli keeps pointers to both for the whole program lifetime */
     static char cli_storage[CLI_LINE_MAX_LENGTH];
     static const struct Command cli_commands[] = {
         { "help", prv_command_help },
@@ -162,8 +148,30 @@ int main(void) {
         { "noise", prv_command_noise },
     };
     const size_t cli_commands_length = sizeof(cli_commands) / sizeof(cli_commands[0]);
-    /* TODO: handle initialization errors */
-    cli_init(&cli, cli_storage, sizeof(cli_storage), cli_commands, cli_commands_length);
+
+    const enum CliInitStatus cli_init_result = cli_init(&cli, cli_storage, sizeof(cli_storage), cli_commands, cli_commands_length);
+    if (cli_init_result != CLI_INIT_OK) {
+        printf("[FATAL] cli_init failed: %d\r\n", cli_init_result);
+        Error_Handler();
+    }
+
+    /* FSM - initialization */
+    static const struct SystemFsmCli system_fsm_cli = {
+        .print = prv_cli_print,
+        .reset = prv_cli_reset,
+    };
+
+    static struct SystemFsm system_fsm = (struct SystemFsm){
+        .cli = &system_fsm_cli,
+        .self_test = prv_port_self_test,
+        .get_tick = HAL_GetTick,
+    };
+
+    enum SystemFsmStatus fsm_status = system_fsm_init(&system_fsm);
+    if (fsm_status != SYSTEM_FSM_OK) {
+        printf("[FATAL] system_fsm_init failed: %d\r\n", fsm_status);
+        Error_Handler();
+    }
 
     /* TODO: handle initialization errors */
     adc_filter_init(&pot_filter);
@@ -223,7 +231,7 @@ int __io_putchar(int ch) {
     return ch;
 }
 
-static void prv_state_cli(void) {
+static void prv_cli_print(void) {
     if (cli.status == CLI_FEED_EMPTY) {
         printf("> ");
         fflush(stdout);
@@ -244,21 +252,25 @@ static void prv_state_cli(void) {
         case COMMAND_EXECUTOR_OK:
             return;
         case COMMAND_EXECUTOR_EMPTY_LINE:
-            printf("[ERROR] empty line\r\n");
+            printf("empty line\r\n");
             return;
         case COMMAND_EXECUTOR_TOO_MANY_ARGS:
-            printf("[ERROR] too many args\r\n");
+            printf("too many args\r\n");
             return;
         case COMMAND_EXECUTOR_COMMAND_NOT_FOUND:
-            printf("[ERROR] command not found\r\n");
+            printf("command not found\r\n");
             return;
         case COMMAND_EXECUTOR_INVALID_ARGS:
             /* The handler has already reported the error to the user */
             return;
         default:
-            printf("[FATAL] cli_execute: should not be here. Error code: %d\r\n", exec_status);
+            printf("[ERROR] cli_execute: should not be here. Error code: %d\r\n", exec_status);
             return;
     }
+}
+
+static void prv_cli_reset(void) {
+    cli_reset(&cli);
 }
 
 static void prv_state_streaming(void) {
@@ -342,10 +354,12 @@ void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin) {
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     HAL_UART_Receive_IT(&huart2, &rx_byte, HOW_MANY_BYTES_TO_READ);
-    if (huart != &huart2 /*|| current_state != &prv_state_cli*/) {
+    if (huart != &huart2) {
         return;
     }
-    cli_feed(&cli, rx_byte);
+    if (system_fsm_is_cli_enabled()) {
+        cli_feed(&cli, rx_byte);
+    }
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
