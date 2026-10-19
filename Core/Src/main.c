@@ -55,6 +55,10 @@
 #define POT_R0 (5000.0f)
 #define POT_T0_KELVIN (298.15f)
 #define POT_BETA (3950.0f)
+
+/* TODO: validate the ADC itself against VREFINT */
+#define NTC_RAW_MIN (50U)
+#define NTC_RAW_MAX (4045U)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -65,9 +69,9 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static struct SystemFsm system_fsm;
-
 static uint8_t rx_byte;
+static volatile uint32_t adc_conversion_count;
+
 static struct Cli cli;
 
 /* dma_buffer[0] = POT (channel 0); dma_buffer[1] = NTC (channel 1) */
@@ -92,6 +96,8 @@ static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]);
 static enum CommandHandlerStatus prv_command_raw(int argc, char *argv[]);
 static enum CommandHandlerStatus prv_command_avg(int argc, char *argv[]);
 static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]);
+
+static enum SystemFsmFatalErrorCode prv_port_self_test(void);
 
 /* USER CODE END PFP */
 
@@ -132,7 +138,16 @@ int main(void) {
     MX_ADC1_Init();
     MX_USART2_UART_Init();
     /* USER CODE BEGIN 2 */
-    const enum SystemFsmStatus fsm_status = system_fsm_init(&system_fsm);
+    static const struct SystemFsmPort system_fsm_port = {
+        .self_test = prv_port_self_test,
+    };
+
+    static struct SystemFsm system_fsm = {
+        .port = &system_fsm_port,
+        .get_tick = HAL_GetTick,
+    };
+
+    enum SystemFsmStatus fsm_status = system_fsm_init(&system_fsm);
     if (fsm_status != SYSTEM_FSM_OK) {
         printf("[FATAL] system_fsm_init failed: %d\r\n", fsm_status);
         Error_Handler();
@@ -150,9 +165,6 @@ int main(void) {
     /* TODO: handle initialization errors */
     cli_init(&cli, cli_storage, sizeof(cli_storage), cli_commands, cli_commands_length);
 
-    HAL_UART_Receive_IT(&huart2, &rx_byte, HOW_MANY_BYTES_TO_READ);
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
-
     /* TODO: handle initialization errors */
     adc_filter_init(&pot_filter);
     ntc_init(&pot, POT_R_PULLUP, POT_R0, POT_T0_KELVIN, POT_BETA);
@@ -167,7 +179,7 @@ int main(void) {
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
-        const enum SystemFsmStatus fsm_status = system_fsm_run(&system_fsm);
+        fsm_status = system_fsm_run(&system_fsm);
         assert(fsm_status == SYSTEM_FSM_OK);
     }
     /* USER CODE END 3 */
@@ -294,16 +306,38 @@ static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]) {
     return COMMAND_HANDLER_OK;
 }
 
+static enum SystemFsmFatalErrorCode prv_port_self_test(void) {
+    const HAL_StatusTypeDef uart_result = HAL_UART_Receive_IT(&huart2, &rx_byte, HOW_MANY_BYTES_TO_READ);
+    if (uart_result != HAL_OK) {
+        return SYSTEM_FSM_FATAL_ERROR_SERIAL_START_FAILED;
+    }
+
+    const HAL_StatusTypeDef dma_result = HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);
+    if (dma_result != HAL_OK) {
+        return SYSTEM_FSM_FATAL_ERROR_SENSOR_START_FAILED;
+    }
+
+    uint32_t waited_ms = 0;
+    while (adc_conversion_count < 1) {
+        if (waited_ms >= 100) {
+            return SYSTEM_FSM_FATAL_ERROR_SENSOR_TIMEOUT;
+        }
+        HAL_Delay(1);
+        waited_ms++;
+    }
+    /* the potentiometer is not checked: every position, rails included, is a valid reading */
+    const uint16_t ntc_raw = dma_buffer[1];
+    if (ntc_raw < NTC_RAW_MIN || ntc_raw > NTC_RAW_MAX) {
+        return SYSTEM_FSM_FATAL_ERROR_NTC_OUT_OF_RANGE;
+    }
+    return SYSTEM_FSM_FATAL_ERROR_NONE;
+}
+
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin) {
-    if (GPIO_Pin != BTN_Pin /*|| current_state == &prv_state_not_initialized*/) {
+    if (GPIO_Pin != BTN_Pin) {
         return;
     }
-    // if (current_state == &prv_state_streaming) {
-    //     cli_reset(&cli);
-    //     current_state = &prv_state_cli;
-    // } else {
-    //     current_state = &prv_state_streaming;
-    // }
+    /* TODO: report the press to the system FSM */
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
@@ -312,6 +346,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         return;
     }
     cli_feed(&cli, rx_byte);
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+    if (hadc == &hadc1) {
+        adc_conversion_count++;
+    }
 }
 /* USER CODE END 4 */
 
