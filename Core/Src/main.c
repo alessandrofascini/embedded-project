@@ -20,6 +20,7 @@
 #include "main.h"
 #include "adc.h"
 #include "dma.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -59,6 +60,9 @@
 /* TODO: validate the ADC itself against VREFINT */
 #define NTC_RAW_MIN (50U)
 #define NTC_RAW_MAX (4045U)
+
+#define LED_BLINK_TICK_HZ (1000U) /* blink timebase: 1 tick = 1 ms */
+#define LED_DUTY_MAX_PERCENT (100U)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -84,6 +88,17 @@ static struct Ntc pot;
 /*! NTC instances */
 static struct AdcFilter ntc_filter;
 static struct Ntc ntc;
+
+/* hardware behind each SystemFsmLed: the FSM only knows the enum */
+struct LedHardware {
+    TIM_HandleTypeDef *timer;
+    uint32_t channel;
+};
+
+static const struct LedHardware main_leds[SYSTEM_FSM_LED_COUNT] = {
+    [SYSTEM_FSM_LED_BOARD] = { .timer = &htim1, .channel = TIM_CHANNEL_1 },
+    [SYSTEM_FSM_LED_EXTERNAL] = { .timer = &htim14, .channel = TIM_CHANNEL_1 },
+};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -91,6 +106,10 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static void prv_cli_print(void);
 static void prv_cli_reset(void);
+
+static uint32_t prv_min(uint32_t a, uint32_t b);
+static void prv_led_set_blink(enum SystemFsmLed led, uint16_t period_ms, uint8_t duty_percent);
+static void prv_led_set_breathing(enum SystemFsmLed led, uint16_t period_ms);
 
 static void prv_state_streaming(void);
 
@@ -139,6 +158,8 @@ int main(void) {
     MX_DMA_Init();
     MX_ADC1_Init();
     MX_USART2_UART_Init();
+    MX_TIM1_Init();
+    MX_TIM14_Init();
     /* USER CODE BEGIN 2 */
     static char cli_storage[CLI_LINE_MAX_LENGTH];
     static const struct Command cli_commands[] = {
@@ -161,8 +182,14 @@ int main(void) {
         .reset = prv_cli_reset,
     };
 
+    static const struct SystemFsmLeds system_fsm_leds = {
+        .set_blink = prv_led_set_blink,
+        .set_breathing = prv_led_set_breathing,
+    };
+
     static struct SystemFsm system_fsm = (struct SystemFsm){
         .cli = &system_fsm_cli,
+        .leds = &system_fsm_leds,
         .self_test = prv_port_self_test,
         .get_tick = HAL_GetTick,
     };
@@ -273,6 +300,46 @@ static void prv_cli_reset(void) {
     cli_reset(&cli);
 }
 
+static uint32_t prv_min(uint32_t a, uint32_t b) {
+    if (a < b) {
+        return a;
+    }
+    return b;
+}
+
+static void prv_led_set_blink(enum SystemFsmLed led, uint16_t period_ms, uint8_t duty_percent) {
+    /* the arguments come from FSM constants: a bad value is a programming error */
+    assert(led < SYSTEM_FSM_LED_COUNT);
+    assert(period_ms > 0U);
+    assert(duty_percent <= LED_DUTY_MAX_PERCENT);
+    if (led >= SYSTEM_FSM_LED_COUNT || period_ms == 0U) {
+        return; /* without asserts: never write ARR = period_ms - 1 = 65535 */
+    }
+    const struct LedHardware *hw = &main_leds[led];
+    const uint32_t duty = prv_min(duty_percent, LED_DUTY_MAX_PERCENT);
+
+    /* unit of time. The 16-bit counter would overflow in ~1.4 ms at 48 MHz,
+     * so the clock is divided down to LED_BLINK_TICK_HZ (1 tick = 1 ms).
+     * it is divided by "register value + 1", hence the "- 1U".
+     */
+    const uint32_t prescaler = HAL_RCC_GetPCLK1Freq() / LED_BLINK_TICK_HZ - 1U;
+    __HAL_TIM_SET_PRESCALER(hw->timer, prescaler);
+
+    /* ticks per period: the counter goes 0..ARR, that is ARR + 1 ticks, hence the "- 1U" */
+    __HAL_TIM_SET_AUTORELOAD(hw->timer, period_ms - 1U);
+
+    /* ticks the pin stays high (the duty cycle) */
+    const uint32_t duty_ticks = (uint32_t)period_ms * duty / LED_DUTY_MAX_PERCENT;
+    __HAL_TIM_SET_COMPARE(hw->timer, hw->channel, duty_ticks);
+    /* load the new prescaler now and restart the period: otherwise shortening ARR
+     * below the current counter value makes the counter wrap around 65535 */
+    hw->timer->Instance->EGR = TIM_EGR_UG;
+}
+
+static void prv_led_set_breathing(enum SystemFsmLed led, uint16_t period_ms) {
+    printf("[LED] %d breathing: %u ms\r\n", led, period_ms);
+}
+
 static void prv_state_streaming(void) {
     const uint16_t pot_raw = adc_filter_apply(&pot_filter, dma_buffer[0]);
     char pot_celsius[FLOAT_STRING_MAX_LENGTH];
@@ -293,7 +360,6 @@ static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]) {
     printf("  avg   - Add the 150-sample moving average filter\r\n");
     printf("  noise - Add random noise injection\r\n");
     printf("Filters stack: avg and noise can be active together.\r\n");
-    printf("Press the user button to go back to streaming.\r\n");
     return COMMAND_HANDLER_OK;
 }
 
@@ -322,6 +388,12 @@ static enum SystemFsmFatalErrorCode prv_port_self_test(void) {
     const HAL_StatusTypeDef uart_result = HAL_UART_Receive_IT(&huart2, &rx_byte, HOW_MANY_BYTES_TO_READ);
     if (uart_result != HAL_OK) {
         return SYSTEM_FSM_FATAL_ERROR_SERIAL_START_FAILED;
+    }
+
+    for (enum SystemFsmLed led = 0; led < SYSTEM_FSM_LED_COUNT; led++) {
+        if (HAL_TIM_PWM_Start(main_leds[led].timer, main_leds[led].channel) != HAL_OK) {
+            return SYSTEM_FSM_FATAL_ERROR_LED_START_FAILED;
+        }
     }
 
     const HAL_StatusTypeDef dma_result = HAL_ADC_Start_DMA(&hadc1, (uint32_t *)dma_buffer, DMA_BUFFER_SIZE);

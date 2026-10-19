@@ -78,6 +78,8 @@ void Error_Handler(void);
 #define VCP_USART2_RX_GPIO_Port GPIOA
 #define LED_EXT_Pin GPIO_PIN_4
 #define LED_EXT_GPIO_Port GPIOA
+#define LED_BOARD_Pin GPIO_PIN_5
+#define LED_BOARD_GPIO_Port GPIOA
 #define DEBUG_SWDIO_Pin GPIO_PIN_13
 #define DEBUG_SWDIO_GPIO_Port GPIOA
 #define DEBUG_SWCLK_Pin GPIO_PIN_14

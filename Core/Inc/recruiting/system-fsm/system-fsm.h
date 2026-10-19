@@ -19,6 +19,7 @@ enum SystemFsmFatalErrorCode {
     SYSTEM_FSM_FATAL_ERROR_SENSOR_START_FAILED,
     SYSTEM_FSM_FATAL_ERROR_SENSOR_TIMEOUT,
     SYSTEM_FSM_FATAL_ERROR_NTC_OUT_OF_RANGE,
+    SYSTEM_FSM_FATAL_ERROR_LED_START_FAILED,
     SYSTEM_FSM_FATAL_ERROR_COUNT,
 };
 
@@ -26,6 +27,15 @@ typedef enum SystemFsmFatalErrorCode (*system_fsm_self_test)(void);
 typedef uint32_t (*system_fsm_get_tick)(void);
 typedef void (*system_fsm_print_cli)(void);
 typedef void (*system_fsm_reset_cli)(void);
+
+enum SystemFsmLed {
+    SYSTEM_FSM_LED_BOARD,
+    SYSTEM_FSM_LED_EXTERNAL,
+    SYSTEM_FSM_LED_COUNT,
+};
+
+typedef void (*system_fsm_led_set_blink)(enum SystemFsmLed led, uint16_t period_ms, uint8_t duty_percent);
+typedef void (*system_fsm_led_set_breathing)(enum SystemFsmLed led, uint16_t period_ms);
 
 enum SystemFsmStatus {
     SYSTEM_FSM_OK,
@@ -35,6 +45,7 @@ enum SystemFsmStatus {
     SYSTEM_FSM_SELF_TEST_IS_NULL,
     SYSTEM_FSM_GET_TICK_IS_NULL,
     SYSTEM_FSM_CLI_IS_NULL,
+    SYSTEM_FSM_LEDS_IS_NULL,
 };
 
 enum SystemFsmState {
@@ -53,6 +64,11 @@ struct SystemFsmCli {
     system_fsm_reset_cli reset;
 };
 
+struct SystemFsmLeds {
+    system_fsm_led_set_blink set_blink;
+    system_fsm_led_set_breathing set_breathing;
+};
+
 struct SystemFsmFatal {
     enum SystemFsmFatalErrorCode error;
     uint32_t last_message_ms;
@@ -62,6 +78,7 @@ struct SystemFsm {
     struct FSMHandler handler;
     system_fsm_self_test self_test;
     const struct SystemFsmCli *cli;
+    const struct SystemFsmLeds *leds;
     struct SystemFsmFatal fatal;
     system_fsm_get_tick get_tick;
 };

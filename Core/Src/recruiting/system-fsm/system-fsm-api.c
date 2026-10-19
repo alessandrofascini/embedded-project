@@ -45,6 +45,7 @@ static const char *const prv_fatal_messages[SYSTEM_FSM_FATAL_ERROR_COUNT] = {
     [SYSTEM_FSM_FATAL_ERROR_SENSOR_START_FAILED] = "failed to start the sensors",
     [SYSTEM_FSM_FATAL_ERROR_SENSOR_TIMEOUT] = "no sensor conversion within the timeout",
     [SYSTEM_FSM_FATAL_ERROR_NTC_OUT_OF_RANGE] = "NTC reading at a rail: open or shorted",
+    [SYSTEM_FSM_FATAL_ERROR_LED_START_FAILED] = "failed to start the LED timers",
 };
 
 static const struct Transition prv_post_transitions[] = {
@@ -131,6 +132,12 @@ enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
     }
     assert(self->cli->print != NULL);
     assert(self->cli->reset != NULL);
+
+    if (self->leds == NULL) {
+        return SYSTEM_FSM_LEDS_IS_NULL;
+    }
+    assert(self->leds->set_blink != NULL);
+    assert(self->leds->set_breathing != NULL);
 
     if (self->get_tick == NULL) {
         return SYSTEM_FSM_GET_TICK_IS_NULL;
@@ -226,15 +233,15 @@ static void prv_routine_waiting(void *data) {
 }
 
 static void prv_routine_listening(void *data) {
-    printf("[FSM] routine: LISTENING\r\n");
+    /* do nothing */
 }
 
 static void prv_routine_warning(void *data) {
-    printf("[FSM] routine: WARNING\r\n");
+    /* do nothing */
 }
 
 static void prv_routine_paused(void *data) {
-    printf("[FSM] routine: PAUSED\r\n");
+    /* do nothing */
 }
 
 static void prv_routine_fatal(void *data) {
@@ -249,6 +256,9 @@ static void prv_enter_waiting(void *data) {
     const struct SystemFsm *self = data;
     assert(self != NULL);
     prv_enable_cli(self->cli);
+
+    self->leds->set_blink(SYSTEM_FSM_LED_BOARD, 500, 15);
+    self->leds->set_breathing(SYSTEM_FSM_LED_EXTERNAL, 2000);
 }
 
 static void prv_enter_listening(void *data) {
