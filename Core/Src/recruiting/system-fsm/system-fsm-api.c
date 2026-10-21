@@ -11,6 +11,7 @@
 #include "system-fsm-api.h"
 
 #include "eagletrt-fsm-api.h"
+#include "float-format-api.h"
 
 #include "system-fsm-cli.h"
 #include "system-fsm-fatal.h"
@@ -23,6 +24,12 @@
 #define SYSTEM_FSM_DUTY_MAX_PERCENT (100U)
 /* how long NTC - POT must stay above the threshold before the warning */
 #define SYSTEM_FSM_LISTENING_WARNING_MS (5000U)
+/* same rate as listening: the stream keeps its cadence and the filters their time constant */
+#define SYSTEM_FSM_WARNING_SAMPLE_PERIOD_MS (100U)
+#define SYSTEM_FSM_WARNING_MESSAGE_PERIOD_MS (200U)
+/* how long the warning may last before it becomes fatal */
+#define SYSTEM_FSM_WARNING_TIMEOUT_MS (10000U)
+#define SYSTEM_FSM_CELSIUS_STRING_LENGTH (10U)
 
 static void prv_routine_post(void *data);
 static void prv_routine_waiting(void *data);
@@ -45,6 +52,8 @@ static void prv_transition_to(struct SystemFsm *self, enum SystemFsmState state)
 
 static inline uint8_t prv_difference_to_duty_percent(float difference_celsius, float threshold_celsius);
 static inline void prv_listening_check_warning(struct SystemFsm *self, float difference_celsius);
+static const char *prv_format_celsius(float celsius, char *buffer, uint16_t buffer_size);
+static void prv_print_reading(const struct SystemFsm *self, const struct SystemFsmReading *reading);
 
 static const struct Transition prv_post_transitions[] = {
     { .to = SYSTEM_FSM_STATE_WAITING, .function = prv_enter_waiting },
@@ -156,8 +165,8 @@ enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
     if (self->read_sensors == NULL) {
         return SYSTEM_FSM_READ_SENSORS_IS_NULL;
     }
-    if (self->print_sensors == NULL) {
-        return SYSTEM_FSM_PRINT_SENSORS_IS_NULL;
+    if (self->print == NULL) {
+        return SYSTEM_FSM_PRINT_IS_NULL;
     }
 
     if (self->get_tick == NULL) {
@@ -236,7 +245,7 @@ static void prv_routine_listening(void *data) {
     }
     struct SystemFsmReading reading;
     self->read_sensors(&reading);
-    self->print_sensors(&reading);
+    prv_print_reading(self, &reading);
 
     const float difference_celsius = reading.ntc_celsius - reading.pot_celsius;
     const uint8_t duty_percent = prv_difference_to_duty_percent(difference_celsius, SYSTEM_FSM_LISTENING_THRESHOLD_CELSIUS);
@@ -246,7 +255,21 @@ static void prv_routine_listening(void *data) {
 }
 
 static void prv_routine_warning(void *data) {
-    /* do nothing */
+    struct SystemFsm *self = data;
+    assert(self != NULL);
+    if (int_system_fsm_has_passed_ms(self->get_tick(), self->warning.entered_ms, SYSTEM_FSM_WARNING_TIMEOUT_MS)) {
+        int_system_fsm_go_fatal(self, SYSTEM_FSM_FATAL_ERROR_WARNING_TIMEOUT);
+        return;
+    }
+    /* sensor reading stays on: keep streaming the readings as in listening */
+    if (int_system_fsm_has_passed_ms_and_update(self->get_tick(), &self->warning.last_sample_ms, SYSTEM_FSM_WARNING_SAMPLE_PERIOD_MS)) {
+        struct SystemFsmReading reading;
+        self->read_sensors(&reading);
+        prv_print_reading(self, &reading);
+    }
+    if (int_system_fsm_has_passed_ms_and_update(self->get_tick(), &self->warning.last_message_ms, SYSTEM_FSM_WARNING_MESSAGE_PERIOD_MS)) {
+        self->print("WARNING\r\n");
+    }
 }
 
 static void prv_routine_paused(void *data) {
@@ -280,7 +303,15 @@ static void prv_enter_listening(void *data) {
 }
 
 static void prv_enter_warning(void *data) {
+    struct SystemFsm *self = data;
+    assert(self != NULL);
+    const uint32_t now_ms = self->get_tick();
+    self->warning.entered_ms = now_ms;
+    self->warning.last_sample_ms = now_ms;
+    /* one period in the past: the first WARNING goes out as soon as the state is entered */
+    self->warning.last_message_ms = now_ms - SYSTEM_FSM_WARNING_MESSAGE_PERIOD_MS;
     int_system_fsm_cli_disable();
+    int_system_fsm_leds_apply(self->leds, SYSTEM_FSM_STATE_WARNING);
 }
 
 static void prv_enter_paused(void *data) {
@@ -341,4 +372,25 @@ static inline void prv_listening_check_warning(struct SystemFsm *self, float dif
     if (int_system_fsm_has_passed_ms(now_ms, listening->above_since_ms, SYSTEM_FSM_LISTENING_WARNING_MS)) {
         prv_transition_to(self, SYSTEM_FSM_STATE_WARNING);
     }
+}
+
+static const char *prv_format_celsius(float celsius, char *buffer, uint16_t buffer_size) {
+    const enum FloatFormatError result = float_to_string(celsius, buffer, buffer_size);
+    /* on failure the buffer content is undefined: never print it */
+    if (result == FLOAT_FORMAT_ERR_NAN) {
+        return "nan";
+    }
+    if (result != FLOAT_FORMAT_OK) {
+        return "err";
+    }
+    return buffer;
+}
+
+static void prv_print_reading(const struct SystemFsm *self, const struct SystemFsmReading *reading) {
+    assert(self != NULL && reading != NULL);
+    char pot_buffer[SYSTEM_FSM_CELSIUS_STRING_LENGTH];
+    char ntc_buffer[SYSTEM_FSM_CELSIUS_STRING_LENGTH];
+    const char *pot_celsius = prv_format_celsius(reading->pot_celsius, pot_buffer, sizeof(pot_buffer));
+    const char *ntc_celsius = prv_format_celsius(reading->ntc_celsius, ntc_buffer, sizeof(ntc_buffer));
+    self->print("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", reading->pot_raw, pot_celsius, reading->ntc_raw, ntc_celsius);
 }

@@ -42,6 +42,10 @@ static const struct SystemFsmLedPattern prv_led_patterns[SYSTEM_FSM_STATE_COUNT]
         [SYSTEM_FSM_LED_BOARD] = SYSTEM_FSM_LED_BLINK(2000U, 50U),
         [SYSTEM_FSM_LED_EXTERNAL] = SYSTEM_FSM_LED_BREATHING(2000U), /* same as waiting */
     },
+    [SYSTEM_FSM_STATE_WARNING] = {
+        [SYSTEM_FSM_LED_BOARD] = SYSTEM_FSM_LED_OFF(),
+        [SYSTEM_FSM_LED_EXTERNAL] = SYSTEM_FSM_LED_OFF(),
+    },
 };
 
 static inline void prv_led_shut_down(const struct SystemFsmLeds *leds, enum SystemFsmLed led) {

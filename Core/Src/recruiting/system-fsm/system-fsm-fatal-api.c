@@ -25,6 +25,7 @@ static const char *const prv_fatal_messages[SYSTEM_FSM_FATAL_ERROR_COUNT] = {
     [SYSTEM_FSM_FATAL_ERROR_SENSOR_TIMEOUT] = "no sensor conversion within the timeout",
     [SYSTEM_FSM_FATAL_ERROR_NTC_OUT_OF_RANGE] = "NTC reading at a rail: open or shorted",
     [SYSTEM_FSM_FATAL_ERROR_LED_START_FAILED] = "failed to start the LED timers",
+    [SYSTEM_FSM_FATAL_ERROR_WARNING_TIMEOUT] = "warning state persisted for more than 10 s",
 };
 
 void int_system_fsm_fatal_init(struct SystemFsmFatal *fatal) {

@@ -20,6 +20,7 @@ enum SystemFsmFatalErrorCode {
     SYSTEM_FSM_FATAL_ERROR_SENSOR_TIMEOUT,
     SYSTEM_FSM_FATAL_ERROR_NTC_OUT_OF_RANGE,
     SYSTEM_FSM_FATAL_ERROR_LED_START_FAILED,
+    SYSTEM_FSM_FATAL_ERROR_WARNING_TIMEOUT,
     SYSTEM_FSM_FATAL_ERROR_COUNT,
 };
 
@@ -46,7 +47,8 @@ struct SystemFsmReading {
 };
 
 typedef void (*system_fsm_read_sensors)(struct SystemFsmReading *reading);
-typedef void (*system_fsm_print_sensors)(const struct SystemFsmReading *reading);
+/* same signature as printf, so printf itself can be plugged in */
+typedef int (*system_fsm_print)(const char *format, ...);
 
 enum SystemFsmStatus {
     SYSTEM_FSM_OK,
@@ -58,7 +60,7 @@ enum SystemFsmStatus {
     SYSTEM_FSM_CLI_IS_NULL,
     SYSTEM_FSM_LEDS_IS_NULL,
     SYSTEM_FSM_READ_SENSORS_IS_NULL,
-    SYSTEM_FSM_PRINT_SENSORS_IS_NULL,
+    SYSTEM_FSM_PRINT_IS_NULL,
 };
 
 enum SystemFsmState {
@@ -100,14 +102,21 @@ struct SystemFsmListening {
     uint32_t above_since_ms; /* valid only while is_above */
 };
 
+struct SystemFsmWarning {
+    uint32_t entered_ms;
+    uint32_t last_sample_ms;
+    uint32_t last_message_ms;
+};
+
 struct SystemFsm {
     struct FSMHandler handler;
     system_fsm_self_test self_test;
     const struct SystemFsmCli *cli;
     const struct SystemFsmLeds *leds;
     system_fsm_read_sensors read_sensors;
-    system_fsm_print_sensors print_sensors;
+    system_fsm_print print;
     struct SystemFsmListening listening;
+    struct SystemFsmWarning warning;
     struct SystemFsmFatal fatal;
     system_fsm_get_tick get_tick;
 };

@@ -30,7 +30,6 @@
 #include <assert.h>
 #include "system-fsm-api.h"
 #include "adc-filter-api.h"
-#include "float-format-api.h"
 #include "ntc-api.h"
 #include "cli-api.h"
 /* USER CODE END Includes */
@@ -45,7 +44,6 @@
 #define HOW_MANY_BYTES_TO_READ (1)
 #define DMA_BUFFER_SIZE (2)
 #define CLI_LINE_MAX_LENGTH (64)
-#define FLOAT_STRING_MAX_LENGTH (10)
 
 #define NTC_R_PULLUP (18000.0f)
 #define NTC_R0 (8755.0f)
@@ -139,7 +137,6 @@ static enum CommandHandlerStatus prv_command_run(int argc, char *argv[]);
 
 static enum SystemFsmFatalErrorCode prv_port_self_test(void);
 static void prv_port_read_sensors(struct SystemFsmReading *reading);
-static void prv_port_print_sensors(const struct SystemFsmReading *reading);
 
 /* USER CODE END PFP */
 
@@ -215,7 +212,7 @@ int main(void) {
         .leds = &system_fsm_leds,
         .self_test = prv_port_self_test,
         .read_sensors = prv_port_read_sensors,
-        .print_sensors = prv_port_print_sensors,
+        .print = printf,
         .get_tick = HAL_GetTick,
     };
 
@@ -506,17 +503,6 @@ static void prv_port_read_sensors(struct SystemFsmReading *reading) {
     reading->pot_celsius = ntc_raw_adc_to_celsius(&pot, reading->pot_raw);
     reading->ntc_raw = adc_filter_apply(&ntc_filter, dma_buffer[1]);
     reading->ntc_celsius = ntc_raw_adc_to_celsius(&ntc, reading->ntc_raw);
-}
-
-static void prv_port_print_sensors(const struct SystemFsmReading *reading) {
-    assert(reading != NULL);
-    char pot_celsius[FLOAT_STRING_MAX_LENGTH];
-    float_to_string(reading->pot_celsius, pot_celsius, sizeof(pot_celsius));
-
-    char ntc_celsius[FLOAT_STRING_MAX_LENGTH];
-    float_to_string(reading->ntc_celsius, ntc_celsius, sizeof(ntc_celsius));
-
-    printf("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", reading->pot_raw, pot_celsius, reading->ntc_raw, ntc_celsius);
 }
 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin) {
