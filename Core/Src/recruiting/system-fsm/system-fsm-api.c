@@ -33,6 +33,16 @@
 #define SYSTEM_FSM_WARNING_TIMEOUT_MS (10000U)
 #define SYSTEM_FSM_CELSIUS_STRING_LENGTH (10U)
 
+/*!
+ * \brief One filtered sample of the potentiometer and the NTC.
+ */
+struct SystemFsmReading {
+    uint16_t pot_raw;  /*!< Potentiometer ADC value after the active filters. */
+    float pot_celsius; /*!< Potentiometer value mapped to a temperature in °C. */
+    uint16_t ntc_raw;  /*!< NTC ADC value after the active filters. */
+    float ntc_celsius; /*!< NTC temperature in °C. */
+};
+
 static void prv_routine_post(void *data);
 static void prv_routine_waiting(void *data);
 static void prv_routine_listening(void *data);
@@ -236,11 +246,12 @@ enum SystemFsmState system_fsm_get_state(const struct SystemFsm *self) {
     return fsm_api_get_state(&self->handler);
 }
 
-/* TODO: called from the button EXTI ISR, so the transition (and the enter function) runs in
- * interrupt context. If it preempts a routine that is mid-sample, the routine resumes in the new
- * state and may request a transition that is not allowed from there (e.g. paused -> warning),
- * which trips the assert in prv_transition_to. Store the trigger in a volatile pending field here
- * and consume it at the start of system_fsm_run, so every transition happens in the main loop. */
+/* TODO: called from the button EXTI ISR. The handlers only request a transition (the switch and
+ * the enter function run later, in system_fsm_run), but the request shares requested_state with
+ * the state routines: if the ISR and a routine both request in the same step (e.g. a click in
+ * listening requests paused while the routine requests warning), the last write wins and the other is lost. A
+ * click in fatal also calls reset_mcu from inside the ISR. Store the trigger in a volatile pending
+ * field here and consume it at the start of system_fsm_run, so every trigger is handled in the main loop. */
 void system_fsm_post_trigger(struct SystemFsm *self, enum SystemFsmTrigger trigger) {
     if (self == NULL) {
         return;

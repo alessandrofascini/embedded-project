@@ -1,7 +1,7 @@
 /*!
  * \file system-fsm-leds-api.c
  * \author Alessandro Fascini
- * \brief Leds helper for the FSM.
+ * \brief LED patterns of the system FSM: the pattern of each LED in each state.
  */
 #include <stdint.h>
 #include <stdbool.h>
@@ -10,22 +10,31 @@
 
 #include "system-fsm-leds.h"
 
+/*!
+ * \brief How an LED is driven.
+ */
 enum SystemFsmLedMode {
-    SYSTEM_FSM_LED_MODE_BLINK,
-    SYSTEM_FSM_LED_MODE_BREATHING,
-    SYSTEM_FSM_LED_MODE_OFF,
+    SYSTEM_FSM_LED_MODE_BLINK,     /*!< On for duty_percent of each period. */
+    SYSTEM_FSM_LED_MODE_BREATHING, /*!< Fades in and out over each period. */
+    SYSTEM_FSM_LED_MODE_OFF,       /*!< Off. */
 };
 
+/*!
+ * \brief The pattern of one LED in one state.
+ */
 struct SystemFsmLedPattern {
-    enum SystemFsmLedMode mode;
-    uint16_t period_ms;
-    uint8_t duty_percent; /* blink only */
+    enum SystemFsmLedMode mode; /*!< How the LED is driven. */
+    uint16_t period_ms;         /*!< Blink or breathing period; unused when off. */
+    uint8_t duty_percent;       /*!< On fraction of the period; blink only. */
 };
 
+/*! \brief Initializer for a blinking LED: period in ms, duty in percent. */
 #define SYSTEM_FSM_LED_BLINK(period, duty) \
     { .mode = SYSTEM_FSM_LED_MODE_BLINK, .period_ms = (period), .duty_percent = (duty) }
+/*! \brief Initializer for a breathing LED: period in ms. */
 #define SYSTEM_FSM_LED_BREATHING(period) \
     { .mode = SYSTEM_FSM_LED_MODE_BREATHING, .period_ms = (period) }
+/*! \brief Initializer for an LED that is off. */
 #define SYSTEM_FSM_LED_OFF() \
     { .mode = SYSTEM_FSM_LED_MODE_OFF }
 
