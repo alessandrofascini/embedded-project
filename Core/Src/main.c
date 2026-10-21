@@ -66,6 +66,8 @@
 /* the breathing advances once per carrier period (one update interrupt) */
 #define LED_BREATHING_STEP_MS ((LED_PWM_PERIOD_TICKS * 1000U) / LED_PWM_TICK_HZ)
 static_assert(LED_BREATHING_STEP_MS >= 1U, "breathing step must be at least 1 ms: lower the PWM carrier frequency");
+
+#define BUTTON_HOLD_MS (2000U) /* a press this long is a long press (leaves the warning state) */
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -113,6 +115,15 @@ struct LedBreathing {
 };
 
 static struct LedBreathing main_breathing[SYSTEM_FSM_LED_COUNT];
+
+/* long press detection, polled from the main loop only: no volatile needed */
+struct ButtonHold {
+    bool is_held;
+    bool has_fired; /* one event per press, however long it is held */
+    uint32_t held_since_ms;
+};
+
+static struct ButtonHold main_button_hold;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -137,6 +148,8 @@ static enum CommandHandlerStatus prv_command_run(int argc, char *argv[]);
 
 static enum SystemFsmFatalErrorCode prv_port_self_test(void);
 static void prv_port_read_sensors(struct SystemFsmReading *reading);
+
+static inline bool prv_button_hold_update(bool is_pressed, uint32_t now_ms);
 
 /* USER CODE END PFP */
 
@@ -238,6 +251,12 @@ int main(void) {
         /* USER CODE BEGIN 3 */
         fsm_status = system_fsm_run(&system_fsm);
         assert(fsm_status == SYSTEM_FSM_OK);
+
+        /* the button pulls the pin low while pressed */
+        const bool is_button_pressed = HAL_GPIO_ReadPin(BTN_GPIO_Port, BTN_Pin) == GPIO_PIN_RESET;
+        if (prv_button_hold_update(is_button_pressed, HAL_GetTick())) {
+            system_fsm_post_trigger(&system_fsm, SYSTEM_FSM_TRIGGER_BUTTON_HOLD);
+        }
     }
     /* USER CODE END 3 */
 }
@@ -503,6 +522,27 @@ static void prv_port_read_sensors(struct SystemFsmReading *reading) {
     reading->pot_celsius = ntc_raw_adc_to_celsius(&pot, reading->pot_raw);
     reading->ntc_raw = adc_filter_apply(&ntc_filter, dma_buffer[1]);
     reading->ntc_celsius = ntc_raw_adc_to_celsius(&ntc, reading->ntc_raw);
+}
+
+/* returns true once per press, when it has been held for BUTTON_HOLD_MS */
+static inline bool prv_button_hold_update(bool is_pressed, uint32_t now_ms) {
+    struct ButtonHold *hold = &main_button_hold;
+    if (!is_pressed) {
+        hold->is_held = false;
+        hold->has_fired = false;
+        return false;
+    }
+    if (!hold->is_held) {
+        hold->is_held = true;
+        hold->held_since_ms = now_ms;
+        return false;
+    }
+    /* unsigned subtraction: still correct when the tick wraps around */
+    if (hold->has_fired || (now_ms - hold->held_since_ms) < BUTTON_HOLD_MS) {
+        return false;
+    }
+    hold->has_fired = true;
+    return true;
 }
 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin) {
