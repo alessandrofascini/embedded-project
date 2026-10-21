@@ -86,18 +86,19 @@ static struct Ntc pot;
 static struct AdcFilter ntc_filter;
 static struct Ntc ntc;
 
-static const struct NtcParams main_pot_params = {
-    .r_pullup = 5000.0f,
-    .r0_ohms = 5000.0f,
-    .t0_kelvin = 298.15f,
-    .beta = 3950.0f,
-};
-
-static const struct NtcParams main_ntc_params = {
-    .r_pullup = 18000.0f,
-    .r0_ohms = 8755.0f,
-    .t0_kelvin = 298.15f,
-    .beta = 3950.0f,
+static const struct SystemFsmConfig main_fsm_config = {
+    .pot = {
+        .r_pullup = 5000.0f,
+        .r0_ohms = 5000.0f,
+        .t0_kelvin = 298.15f,
+        .beta = 3950.0f,
+    },
+    .ntc = {
+        .r_pullup = 18000.0f,
+        .r0_ohms = 8755.0f,
+        .t0_kelvin = 298.15f,
+        .beta = 3950.0f,
+    },
 };
 
 /* hardware behind each SystemFsmLed: the FSM only knows the enum */
@@ -239,7 +240,7 @@ int main(void) {
         .get_tick = HAL_GetTick,
     };
 
-    enum SystemFsmStatus fsm_status = system_fsm_init(&system_fsm);
+    enum SystemFsmStatus fsm_status = system_fsm_init(&system_fsm, &main_fsm_config);
     if (fsm_status != SYSTEM_FSM_OK) {
         serial_print("[FATAL] system_fsm_init failed: %d\r\n", fsm_status);
         Error_Handler();
@@ -247,9 +248,9 @@ int main(void) {
 
     /* TODO: handle initialization errors */
     adc_filter_init(&pot_filter);
-    ntc_init(&pot, &main_pot_params);
+    ntc_init(&pot, &main_fsm_config.pot);
     adc_filter_init(&ntc_filter);
-    ntc_init(&ntc, &main_ntc_params);
+    ntc_init(&ntc, &main_fsm_config.ntc);
 
     /* USER CODE END 2 */
 

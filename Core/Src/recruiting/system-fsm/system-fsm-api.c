@@ -12,6 +12,8 @@
 
 #include "eagletrt-fsm-api.h"
 #include "float-format-api.h"
+#include "adc-filter-api.h"
+#include "ntc-api.h"
 
 #include "system-fsm-cli.h"
 #include "system-fsm-fatal.h"
@@ -56,6 +58,7 @@ static inline uint8_t prv_difference_to_duty_percent(float difference_celsius, f
 static inline void prv_listening_check_warning(struct SystemFsm *self, float difference_celsius);
 static const char *prv_format_celsius(float celsius, char *buffer, uint16_t buffer_size);
 static void prv_print_reading(const struct SystemFsm *self, const struct SystemFsmReading *reading);
+static inline enum SystemFsmStatus prv_nested_status(enum SystemFsmStatus base, int code);
 
 static const struct Transition prv_post_transitions[] = {
     { .to = SYSTEM_FSM_STATE_WAITING, .function = prv_enter_waiting },
@@ -150,7 +153,7 @@ static const system_fsm_trigger_handler prv_trigger_handlers[SYSTEM_FSM_STATE_CO
     },
 };
 
-enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
+enum SystemFsmStatus system_fsm_init(struct SystemFsm *self, const struct SystemFsmConfig *config) {
     if (self == NULL) {
         return SYSTEM_FSM_SELF_IS_NULL;
     }
@@ -183,6 +186,26 @@ enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
 
     if (self->get_tick == NULL) {
         return SYSTEM_FSM_GET_TICK_IS_NULL;
+    }
+
+    if (config == NULL) {
+        return SYSTEM_FSM_CONFIG_IS_NULL;
+    }
+    const enum AdcFilterError pot_filter_result = adc_filter_init(&self->pot_filter);
+    if (pot_filter_result != ADC_FILTER_OK) {
+        return prv_nested_status(SYSTEM_FSM_POT_FILTER_INIT_FAILED, pot_filter_result);
+    }
+    const enum AdcFilterError ntc_filter_result = adc_filter_init(&self->ntc_filter);
+    if (ntc_filter_result != ADC_FILTER_OK) {
+        return prv_nested_status(SYSTEM_FSM_NTC_FILTER_INIT_FAILED, ntc_filter_result);
+    }
+    const enum NtcError pot_model_result = ntc_init(&self->pot, &config->pot);
+    if (pot_model_result != NTC_OK) {
+        return prv_nested_status(SYSTEM_FSM_POT_MODEL_INIT_FAILED, pot_model_result);
+    }
+    const enum NtcError ntc_model_result = ntc_init(&self->ntc, &config->ntc);
+    if (ntc_model_result != NTC_OK) {
+        return prv_nested_status(SYSTEM_FSM_NTC_MODEL_INIT_FAILED, ntc_model_result);
     }
 
     const enum FSMReturnCode result = fsm_api_init(&self->handler, prv_states, SYSTEM_FSM_STATE_COUNT, SYSTEM_FSM_STATE_POST);
@@ -418,4 +441,9 @@ static void prv_print_reading(const struct SystemFsm *self, const struct SystemF
     const char *pot_celsius = prv_format_celsius(reading->pot_celsius, pot_buffer, sizeof(pot_buffer));
     const char *ntc_celsius = prv_format_celsius(reading->ntc_celsius, ntc_buffer, sizeof(ntc_buffer));
     self->print("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", reading->pot_raw, pot_celsius, reading->ntc_raw, ntc_celsius);
+}
+
+static inline enum SystemFsmStatus prv_nested_status(enum SystemFsmStatus base, int code) {
+    /* the sub-module's code lands inside base's range: 305 is the pot model failing with code 5 */
+    return (enum SystemFsmStatus)(base + code);
 }

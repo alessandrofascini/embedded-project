@@ -10,7 +10,7 @@
 #include <stdbool.h>
 #include "system-fsm.h"
 
-enum SystemFsmStatus system_fsm_init(struct SystemFsm *self);
+enum SystemFsmStatus system_fsm_init(struct SystemFsm *self, const struct SystemFsmConfig *config);
 
 enum SystemFsmStatus system_fsm_run(struct SystemFsm *self);
 

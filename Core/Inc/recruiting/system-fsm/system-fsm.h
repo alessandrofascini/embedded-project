@@ -73,8 +73,11 @@ enum SystemFsmStatus {
     SYSTEM_FSM_RESET_MCU_IS_NULL,
     SYSTEM_FSM_READ_RAW_IS_NULL,
     SYSTEM_FSM_CONFIG_IS_NULL,
-    SYSTEM_FSM_NTC_INIT_FAILED,
-    SYSTEM_FSM_FILTER_INIT_FAILED,
+    /* nested init failures: base + the sub-module's error code */
+    SYSTEM_FSM_POT_FILTER_INIT_FAILED = 100, /* 100 + enum AdcFilterError */
+    SYSTEM_FSM_NTC_FILTER_INIT_FAILED = 200, /* 200 + enum AdcFilterError */
+    SYSTEM_FSM_POT_MODEL_INIT_FAILED = 300,  /* 300 + enum NtcError */
+    SYSTEM_FSM_NTC_MODEL_INIT_FAILED = 400,  /* 400 + enum NtcError */
 };
 
 enum SystemFsmState {
