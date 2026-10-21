@@ -18,22 +18,38 @@ void tearDown(void) {
     // Here any cleanup code can be placed that needs to run after each test
 }
 
+static const struct NtcParams ntc_test_params = {
+    .r_pullup = 10000.0f, // 10k ohm pull-up resistor
+    .r0_ohms = 10000.0f,  // 10k ohm nominal resistance at t0_kelvin
+    .t0_kelvin = 298.15f, // 25 degC in kelvin
+    .beta = 3950.0f,      // Beta coefficient
+};
+
 void testNtcInit(void) {
     struct Ntc ntc;
-    const float r_pullup = 10000.0f; // 10k ohm pull-up resistor
-    const float r0 = 10000.0f;       // 10k ohm nominal resistance at t0_kelvin
-    const float t0_kelvin = 298.15f; // 25 degC in kelvin
-    const float beta = 3950.0f;      // Beta coefficient
 
-    enum NtcError result = ntc_init(&ntc, r_pullup, r0, t0_kelvin, beta);
+    enum NtcError result = ntc_init(&ntc, &ntc_test_params);
     TEST_ASSERT_EQUAL(NTC_OK, result);
 
-    // Test invalid parameters
-    TEST_ASSERT_EQUAL(NTC_SELF_IS_NULL, ntc_init(NULL, 0, 0, 0, 0));
-    TEST_ASSERT_EQUAL(NTC_INVALID_R_PULLUP, ntc_init(&ntc, 0, 0, 0, 0));
-    TEST_ASSERT_EQUAL(NTC_INVALID_R0, ntc_init(&ntc, r_pullup, 0, 0, 0));
-    TEST_ASSERT_EQUAL(NTC_INVALID_T0, ntc_init(&ntc, r_pullup, r0, 0, 0));
-    TEST_ASSERT_EQUAL(NTC_INVALID_BETA, ntc_init(&ntc, r_pullup, r0, t0_kelvin, 0));
+    // Test invalid parameters: each case breaks one field of otherwise valid params
+    TEST_ASSERT_EQUAL(NTC_SELF_IS_NULL, ntc_init(NULL, &ntc_test_params));
+    TEST_ASSERT_EQUAL(NTC_PARAMS_IS_NULL, ntc_init(&ntc, NULL));
+
+    struct NtcParams params = ntc_test_params;
+    params.r_pullup = 0.0f;
+    TEST_ASSERT_EQUAL(NTC_INVALID_R_PULLUP, ntc_init(&ntc, &params));
+
+    params = ntc_test_params;
+    params.r0_ohms = 0.0f;
+    TEST_ASSERT_EQUAL(NTC_INVALID_R0, ntc_init(&ntc, &params));
+
+    params = ntc_test_params;
+    params.t0_kelvin = 0.0f;
+    TEST_ASSERT_EQUAL(NTC_INVALID_T0, ntc_init(&ntc, &params));
+
+    params = ntc_test_params;
+    params.beta = 0.0f;
+    TEST_ASSERT_EQUAL(NTC_INVALID_BETA, ntc_init(&ntc, &params));
 }
 
 void testNtcRawAdcToCelsius(void) {
@@ -43,12 +59,7 @@ void testNtcRawAdcToCelsius(void) {
     TEST_ASSERT_EQUAL_FLOAT(INFINITY, ntc_raw_adc_to_celsius(&ntc, 0));
     TEST_ASSERT_EQUAL_FLOAT(INFINITY, ntc_raw_adc_to_celsius(&ntc, NTC_ADC_MAX_VALUE));
 
-    const float r_pullup = 10000.0f; // 10k ohm pull-up resistor
-    const float r0 = 10000.0f;       // 10k ohm nominal resistance at t0_kelvin
-    const float t0_kelvin = 298.15f; // 25 degC in kelvin
-    const float beta = 3950.0f;      // Beta coefficient
-
-    TEST_ASSERT_EQUAL(NTC_OK, ntc_init(&ntc, r_pullup, r0, t0_kelvin, beta));
+    TEST_ASSERT_EQUAL(NTC_OK, ntc_init(&ntc, &ntc_test_params));
 
     TEST_ASSERT_FLOAT_WITHIN(0.1f, 25.0f, ntc_raw_adc_to_celsius(&ntc, 2048)); // Mid-scale ADC value
 
@@ -57,7 +68,10 @@ void testNtcRawAdcToCelsius(void) {
     TEST_ASSERT_FLOAT_WITHIN(0.05f, 51.99f, ntc_raw_adc_to_celsius(&ntc, 3072));
 
     /* With r_pullup != r0 (the board's NTC), the two resistances cannot cancel out */
-    TEST_ASSERT_EQUAL(NTC_OK, ntc_init(&ntc, 18000.0f, 8755.0f, t0_kelvin, beta));
+    struct NtcParams board_params = ntc_test_params;
+    board_params.r_pullup = 18000.0f;
+    board_params.r0_ohms = 8755.0f;
+    TEST_ASSERT_EQUAL(NTC_OK, ntc_init(&ntc, &board_params));
     TEST_ASSERT_FLOAT_WITHIN(0.05f, -11.00f, ntc_raw_adc_to_celsius(&ntc, 1024));
     TEST_ASSERT_FLOAT_WITHIN(0.05f, 9.63f, ntc_raw_adc_to_celsius(&ntc, 2048));
     TEST_ASSERT_FLOAT_WITHIN(0.05f, 33.78f, ntc_raw_adc_to_celsius(&ntc, 3072));

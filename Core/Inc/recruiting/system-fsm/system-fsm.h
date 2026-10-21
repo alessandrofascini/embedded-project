@@ -11,6 +11,8 @@
 #include <stdint.h>
 
 #include "eagletrt-fsm.h"
+#include "adc-filter.h"
+#include "ntc.h"
 
 enum SystemFsmFatalErrorCode {
     SYSTEM_FSM_FATAL_ERROR_NONE,
@@ -47,6 +49,12 @@ struct SystemFsmReading {
 };
 
 typedef void (*system_fsm_read_sensors)(struct SystemFsmReading *reading);
+typedef void (*system_fsm_read_raw)(uint16_t *pot_raw, uint16_t *ntc_raw);
+
+struct SystemFsmConfig {
+    struct NtcParams pot;
+    struct NtcParams ntc;
+};
 /* printf-like: main.c plugs in serial_print */
 typedef void (*system_fsm_print)(const char *format, ...);
 typedef void (*system_fsm_reset_mcu)(void);
@@ -63,6 +71,10 @@ enum SystemFsmStatus {
     SYSTEM_FSM_READ_SENSORS_IS_NULL,
     SYSTEM_FSM_PRINT_IS_NULL,
     SYSTEM_FSM_RESET_MCU_IS_NULL,
+    SYSTEM_FSM_READ_RAW_IS_NULL,
+    SYSTEM_FSM_CONFIG_IS_NULL,
+    SYSTEM_FSM_NTC_INIT_FAILED,
+    SYSTEM_FSM_FILTER_INIT_FAILED,
 };
 
 enum SystemFsmState {
@@ -117,12 +129,17 @@ struct SystemFsm {
     const struct SystemFsmCli *cli;
     const struct SystemFsmLeds *leds;
     system_fsm_read_sensors read_sensors;
+    system_fsm_read_raw read_raw;
     system_fsm_print print;
     system_fsm_reset_mcu reset_mcu;
     struct SystemFsmListening listening;
     struct SystemFsmWarning warning;
     struct SystemFsmFatal fatal;
     system_fsm_get_tick get_tick;
+    struct AdcFilter pot_filter;
+    struct Ntc pot;
+    struct AdcFilter ntc_filter;
+    struct Ntc ntc;
 };
 
 #endif

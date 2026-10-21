@@ -11,22 +11,24 @@
 
 #define KELVIN_TO_CELSIUS_OFFSET (273.15F)
 
-enum NtcError ntc_init(struct Ntc *self, const float r_pullup, const float r0_ohms, const float t0_kelvin, const float beta) {
-    // TODO: too many parameters - consider refactoring
+enum NtcError ntc_init(struct Ntc *self, const struct NtcParams *params) {
     if (self == NULL) {
         return NTC_SELF_IS_NULL;
     }
+    if (params == NULL) {
+        return NTC_PARAMS_IS_NULL;
+    }
 
-    if (r_pullup <= 0.0F) {
+    if (params->r_pullup <= 0.0F) {
         return NTC_INVALID_R_PULLUP;
     }
-    if (r0_ohms <= 0.0F) {
+    if (params->r0_ohms <= 0.0F) {
         return NTC_INVALID_R0;
     }
-    if (t0_kelvin <= 0.0F) {
+    if (params->t0_kelvin <= 0.0F) {
         return NTC_INVALID_T0;
     }
-    if (beta <= 0.0F) {
+    if (params->beta <= 0.0F) {
         return NTC_INVALID_BETA;
     }
 
@@ -34,8 +36,8 @@ enum NtcError ntc_init(struct Ntc *self, const float r_pullup, const float r0_oh
      *   1/T = 1/t0 + ln(R / r0) / beta
      *       = [1/t0 + ln(r_pullup / r0) / beta] + ln(ratio) / beta
      * The bracket does not depend on the reading, so it is computed once here. */
-    self->inverse_beta = 1.0F / beta;
-    self->inverse_t_offset = 1.0F / t0_kelvin + logf(r_pullup / r0_ohms) * self->inverse_beta;
+    self->inverse_beta = 1.0F / params->beta;
+    self->inverse_t_offset = 1.0F / params->t0_kelvin + logf(params->r_pullup / params->r0_ohms) * self->inverse_beta;
     return NTC_OK;
 }
 

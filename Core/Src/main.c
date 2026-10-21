@@ -45,16 +45,6 @@
 #define DMA_BUFFER_SIZE (2)
 #define CLI_LINE_MAX_LENGTH (64)
 
-#define NTC_R_PULLUP (18000.0f)
-#define NTC_R0 (8755.0f)
-#define NTC_T0_KELVIN (298.15f)
-#define NTC_BETA (3950.0f)
-
-#define POT_R_PULLUP (5000.0f)
-#define POT_R0 (5000.0f)
-#define POT_T0_KELVIN (298.15f)
-#define POT_BETA (3950.0f)
-
 /* TODO: validate the ADC itself against VREFINT */
 #define NTC_RAW_MIN (50U)
 #define NTC_RAW_MAX (4045U)
@@ -95,6 +85,20 @@ static struct Ntc pot;
 /*! NTC instances */
 static struct AdcFilter ntc_filter;
 static struct Ntc ntc;
+
+static const struct NtcParams main_pot_params = {
+    .r_pullup = 5000.0f,
+    .r0_ohms = 5000.0f,
+    .t0_kelvin = 298.15f,
+    .beta = 3950.0f,
+};
+
+static const struct NtcParams main_ntc_params = {
+    .r_pullup = 18000.0f,
+    .r0_ohms = 8755.0f,
+    .t0_kelvin = 298.15f,
+    .beta = 3950.0f,
+};
 
 /* hardware behind each SystemFsmLed: the FSM only knows the enum */
 struct LedHardware {
@@ -243,9 +247,9 @@ int main(void) {
 
     /* TODO: handle initialization errors */
     adc_filter_init(&pot_filter);
-    ntc_init(&pot, POT_R_PULLUP, POT_R0, POT_T0_KELVIN, POT_BETA);
+    ntc_init(&pot, &main_pot_params);
     adc_filter_init(&ntc_filter);
-    ntc_init(&ntc, NTC_R_PULLUP, NTC_R0, NTC_T0_KELVIN, NTC_BETA);
+    ntc_init(&ntc, &main_ntc_params);
 
     /* USER CODE END 2 */
 
