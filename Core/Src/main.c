@@ -226,6 +226,7 @@ int main(void) {
         .self_test = prv_port_self_test,
         .read_sensors = prv_port_read_sensors,
         .print = printf,
+        .reset_mcu = NVIC_SystemReset,
         .get_tick = HAL_GetTick,
     };
 

@@ -49,6 +49,7 @@ typedef void (*system_fsm_trigger_handler)(struct SystemFsm *self);
 static void prv_trigger_go_listening(struct SystemFsm *self);
 static void prv_trigger_go_paused(struct SystemFsm *self);
 static void prv_trigger_go_waiting(struct SystemFsm *self);
+static void prv_trigger_reset_mcu(struct SystemFsm *self);
 static void prv_transition_to(struct SystemFsm *self, enum SystemFsmState state);
 
 static inline uint8_t prv_difference_to_duty_percent(float difference_celsius, float threshold_celsius);
@@ -144,6 +145,9 @@ static const system_fsm_trigger_handler prv_trigger_handlers[SYSTEM_FSM_STATE_CO
         /* a plain click is ignored here: only a long press leaves the warning */
         [SYSTEM_FSM_TRIGGER_BUTTON_HOLD] = prv_trigger_go_waiting,
     },
+    [SYSTEM_FSM_STATE_FATAL] = {
+        [SYSTEM_FSM_TRIGGER_BUTTON_CLICK] = prv_trigger_reset_mcu,
+    },
 };
 
 enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
@@ -172,6 +176,9 @@ enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
     }
     if (self->print == NULL) {
         return SYSTEM_FSM_PRINT_IS_NULL;
+    }
+    if (self->reset_mcu == NULL) {
+        return SYSTEM_FSM_RESET_MCU_IS_NULL;
     }
 
     if (self->get_tick == NULL) {
@@ -327,7 +334,10 @@ static void prv_enter_paused(void *data) {
 }
 
 static void prv_enter_fatal(void *data) {
+    const struct SystemFsm *self = data;
+    assert(self != NULL);
     int_system_fsm_cli_disable();
+    int_system_fsm_leds_apply(self->leds, SYSTEM_FSM_STATE_FATAL);
 }
 
 static void prv_trigger_go_listening(struct SystemFsm *self) {
@@ -340,6 +350,12 @@ static void prv_trigger_go_paused(struct SystemFsm *self) {
 
 static void prv_trigger_go_waiting(struct SystemFsm *self) {
     prv_transition_to(self, SYSTEM_FSM_STATE_WAITING);
+}
+
+static void prv_trigger_reset_mcu(struct SystemFsm *self) {
+    assert(self != NULL);
+    /* fatal has no outgoing transition: a reset is the only way out, and it does not return */
+    self->reset_mcu();
 }
 
 static void prv_transition_to(struct SystemFsm *self, enum SystemFsmState state) {

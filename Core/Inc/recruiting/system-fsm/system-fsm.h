@@ -49,6 +49,7 @@ struct SystemFsmReading {
 typedef void (*system_fsm_read_sensors)(struct SystemFsmReading *reading);
 /* same signature as printf, so printf itself can be plugged in */
 typedef int (*system_fsm_print)(const char *format, ...);
+typedef void (*system_fsm_reset_mcu)(void);
 
 enum SystemFsmStatus {
     SYSTEM_FSM_OK,
@@ -61,6 +62,7 @@ enum SystemFsmStatus {
     SYSTEM_FSM_LEDS_IS_NULL,
     SYSTEM_FSM_READ_SENSORS_IS_NULL,
     SYSTEM_FSM_PRINT_IS_NULL,
+    SYSTEM_FSM_RESET_MCU_IS_NULL,
 };
 
 enum SystemFsmState {
@@ -116,6 +118,7 @@ struct SystemFsm {
     const struct SystemFsmLeds *leds;
     system_fsm_read_sensors read_sensors;
     system_fsm_print print;
+    system_fsm_reset_mcu reset_mcu;
     struct SystemFsmListening listening;
     struct SystemFsmWarning warning;
     struct SystemFsmFatal fatal;
