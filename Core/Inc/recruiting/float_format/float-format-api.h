@@ -13,11 +13,11 @@
  * \brief Result codes for float_to_string().
  */
 enum FloatFormatError {
-    FLOAT_FORMAT_OK = 0,                    /*!< Conversion succeeded. */
-    FLOAT_FORMAT_ERR_NULL = -1,             /*!< buffer is NULL or buffer_size is 0. */
-    FLOAT_FORMAT_ERR_NAN = -2,              /*!< value is NaN, cannot be formatted. */
-    FLOAT_FORMAT_ERR_BUFFER_TOO_SMALL = -3, /*!< buffer_size too small to hold even "0.0". */
-    FLOAT_FORMAT_ERR_OVERFLOW = -4          /*!< buffer_size too small to fit the sign, all digits, and the terminator. */
+    FLOAT_FORMAT_OK,                   /*!< Conversion succeeded. */
+    FLOAT_FORMAT_ERR_NULL,             /*!< buffer is NULL or buffer_size is 0. */
+    FLOAT_FORMAT_ERR_NAN,              /*!< value is NaN, cannot be formatted. */
+    FLOAT_FORMAT_ERR_BUFFER_TOO_SMALL, /*!< buffer_size too small to hold even "0.0". */
+    FLOAT_FORMAT_ERR_OVERFLOW          /*!< buffer_size too small to fit the sign, all digits, and the terminator. */
 };
 
 /*!

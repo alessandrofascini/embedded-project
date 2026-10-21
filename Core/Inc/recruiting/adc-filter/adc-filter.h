@@ -52,9 +52,9 @@ enum AdcFilterEvent {
  * \brief Error codes for the ADC filter.
  */
 enum AdcFilterError {
-    ADC_FILTER_OK = 0,                         /*!< Initialization succeeded. */
-    ADC_FILTER_SELF_IS_NULL = -1,              /*!< self is NULL. */
-    ADC_FILTER_MOVING_AVERAGE_INIT_FAILED = -2 /*!< The underlying moving-average filter failed to initialize. */
+    ADC_FILTER_OK,                        /*!< Initialization succeeded. */
+    ADC_FILTER_SELF_IS_NULL,              /*!< self is NULL. */
+    ADC_FILTER_MOVING_AVERAGE_INIT_FAILED /*!< The underlying moving-average filter failed to initialize. */
 };
 
 /*!

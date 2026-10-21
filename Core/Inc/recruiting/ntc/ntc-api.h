@@ -13,13 +13,13 @@
  * \brief Result codes for ntc_init().
  */
 enum NtcError {
-    NTC_OK = 0,                /*!< Initialization succeeded. */
-    NTC_SELF_IS_NULL = -1,     /*!< self is NULL. */
-    NTC_INVALID_R_PULLUP = -2, /*!< r_pullup is <= 0. */
-    NTC_INVALID_R0 = -3,       /*!< r0_ohms is <= 0. */
-    NTC_INVALID_T0 = -4,       /*!< t0_kelvin is <= 0. */
-    NTC_INVALID_BETA = -5,     /*!< beta is <= 0. */
-    NTC_PARAMS_IS_NULL = -6    /*!< params is NULL. */
+    NTC_OK,               /*!< Initialization succeeded. */
+    NTC_SELF_IS_NULL,     /*!< self is NULL. */
+    NTC_INVALID_R_PULLUP, /*!< r_pullup is <= 0. */
+    NTC_INVALID_R0,       /*!< r0_ohms is <= 0. */
+    NTC_INVALID_T0,       /*!< t0_kelvin is <= 0. */
+    NTC_INVALID_BETA,     /*!< beta is <= 0. */
+    NTC_PARAMS_IS_NULL    /*!< params is NULL. */
 };
 
 /*!

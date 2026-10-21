@@ -13,10 +13,10 @@
  * \brief Result codes for adc_moving_average_init().
  */
 enum AdcMovingAverageError {
-    ADC_MOVING_AVERAGE_OK = 0,              /*!< Initialization succeeded. */
-    ADC_MOVING_AVERAGE_SELF_IS_NULL = -1,   /*!< self is NULL. */
-    ADC_MOVING_AVERAGE_BUFFER_IS_NULL = -2, /*!< self or buffer is NULL. */
-    ADC_MOVING_AVERAGE_ZERO_CAPACITY = -3   /*!< capacity is 0. */
+    ADC_MOVING_AVERAGE_OK,             /*!< Initialization succeeded. */
+    ADC_MOVING_AVERAGE_SELF_IS_NULL,   /*!< self is NULL. */
+    ADC_MOVING_AVERAGE_BUFFER_IS_NULL, /*!< self or buffer is NULL. */
+    ADC_MOVING_AVERAGE_ZERO_CAPACITY   /*!< capacity is 0. */
 };
 
 /*!

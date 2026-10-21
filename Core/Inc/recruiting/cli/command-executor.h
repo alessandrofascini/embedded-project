@@ -18,8 +18,8 @@
  * \brief Result returned by a command handler.
  */
 enum CommandHandlerStatus {
-    COMMAND_HANDLER_OK = 0,            /*!< Arguments accepted and command performed. */
-    COMMAND_HANDLER_INVALID_ARGS = -1, /*!< Arguments missing, extra or malformed. */
+    COMMAND_HANDLER_OK,           /*!< Arguments accepted and command performed. */
+    COMMAND_HANDLER_INVALID_ARGS, /*!< Arguments missing, extra or malformed. */
 };
 
 /*!
@@ -49,16 +49,16 @@ struct Command {
  * \brief Result codes for the command executor functions.
  */
 enum CommandExecutorStatus {
-    COMMAND_EXECUTOR_OK = 0,                 /*!< Success. */
-    COMMAND_EXECUTOR_SELF_IS_NULL = -1,      /*!< self is NULL. */
-    COMMAND_EXECUTOR_COMMANDS_IS_NULL = -2,  /*!< commands is NULL. */
-    COMMAND_EXECUTOR_INVALID_COMMAND = -3,   /*!< A table entry has a NULL grammar or handler. */
-    COMMAND_EXECUTOR_LINE_IS_NULL = -4,      /*!< line is NULL. */
-    COMMAND_EXECUTOR_EMPTY_LINE = -5,        /*!< line contains only separators. */
-    COMMAND_EXECUTOR_TOO_MANY_ARGS = -6,     /*!< line has more than COMMAND_EXECUTOR_MAX_ARGS tokens. */
-    COMMAND_EXECUTOR_COMMAND_NOT_FOUND = -7, /*!< argv[0] matches no table entry. */
-    COMMAND_EXECUTOR_INVALID_ARGS = -8,      /*!< The handler returned anything other than COMMAND_HANDLER_OK. */
-    COMMAND_EXECUTOR_LINE_NOT_READY = -9,    /*!< The line is not complete yet (only returned by cli_execute()). */
+    COMMAND_EXECUTOR_OK,                /*!< Success. */
+    COMMAND_EXECUTOR_SELF_IS_NULL,      /*!< self is NULL. */
+    COMMAND_EXECUTOR_COMMANDS_IS_NULL,  /*!< commands is NULL. */
+    COMMAND_EXECUTOR_INVALID_COMMAND,   /*!< A table entry has a NULL grammar or handler. */
+    COMMAND_EXECUTOR_LINE_IS_NULL,      /*!< line is NULL. */
+    COMMAND_EXECUTOR_EMPTY_LINE,        /*!< line contains only separators. */
+    COMMAND_EXECUTOR_TOO_MANY_ARGS,     /*!< line has more than COMMAND_EXECUTOR_MAX_ARGS tokens. */
+    COMMAND_EXECUTOR_COMMAND_NOT_FOUND, /*!< argv[0] matches no table entry. */
+    COMMAND_EXECUTOR_INVALID_ARGS,      /*!< The handler returned anything other than COMMAND_HANDLER_OK. */
+    COMMAND_EXECUTOR_LINE_NOT_READY,    /*!< The line is not complete yet (only returned by cli_execute()). */
 };
 
 /*!
