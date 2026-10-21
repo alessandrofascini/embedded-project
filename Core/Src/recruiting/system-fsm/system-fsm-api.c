@@ -15,6 +15,14 @@
 #include "system-fsm-cli.h"
 #include "system-fsm-fatal.h"
 #include "system-fsm-leds.h"
+#include "system-fsm-time.h"
+
+#define SYSTEM_FSM_LISTENING_PERIOD_MS (100U)
+/* NTC - POT at which the external LED reaches full duty */
+#define SYSTEM_FSM_LISTENING_THRESHOLD_CELSIUS (5.0f)
+#define SYSTEM_FSM_DUTY_MAX_PERCENT (100U)
+/* how long NTC - POT must stay above the threshold before the warning */
+#define SYSTEM_FSM_LISTENING_WARNING_MS (5000U)
 
 static void prv_routine_post(void *data);
 static void prv_routine_waiting(void *data);
@@ -32,7 +40,11 @@ static void prv_enter_fatal(void *data);
 typedef void (*system_fsm_trigger_handler)(struct SystemFsm *self);
 
 static void prv_trigger_go_listening(struct SystemFsm *self);
+static void prv_trigger_go_paused(struct SystemFsm *self);
 static void prv_transition_to(struct SystemFsm *self, enum SystemFsmState state);
+
+static inline uint8_t prv_difference_to_duty_percent(float difference_celsius, float threshold_celsius);
+static inline void prv_listening_check_warning(struct SystemFsm *self, float difference_celsius);
 
 static const struct Transition prv_post_transitions[] = {
     { .to = SYSTEM_FSM_STATE_WAITING, .function = prv_enter_waiting },
@@ -110,7 +122,10 @@ static const system_fsm_trigger_handler prv_trigger_handlers[SYSTEM_FSM_STATE_CO
     [SYSTEM_FSM_STATE_WAITING] = {
         [SYSTEM_FSM_TRIGGER_BUTTON_CLICK] = prv_trigger_go_listening,
         [SYSTEM_FSM_TRIGGER_RUN_COMMAND] = prv_trigger_go_listening,
-    }
+    },
+    [SYSTEM_FSM_STATE_LISTENING] = {
+        [SYSTEM_FSM_TRIGGER_BUTTON_CLICK] = prv_trigger_go_paused,
+    },
 };
 
 enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
@@ -132,6 +147,14 @@ enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
     }
     assert(self->leds->set_blink != NULL);
     assert(self->leds->set_breathing != NULL);
+    assert(self->leds->set_duty != NULL);
+
+    if (self->read_sensors == NULL) {
+        return SYSTEM_FSM_READ_SENSORS_IS_NULL;
+    }
+    if (self->print_sensors == NULL) {
+        return SYSTEM_FSM_PRINT_SENSORS_IS_NULL;
+    }
 
     if (self->get_tick == NULL) {
         return SYSTEM_FSM_GET_TICK_IS_NULL;
@@ -164,6 +187,11 @@ enum SystemFsmState system_fsm_get_state(const struct SystemFsm *self) {
     return fsm_api_get_state(&self->handler);
 }
 
+/* TODO: called from the button EXTI ISR, so the transition (and the enter function) runs in
+ * interrupt context. If it preempts a routine that is mid-sample, the routine resumes in the new
+ * state and may request a transition that is not allowed from there (e.g. paused -> warning),
+ * which trips the assert in prv_transition_to. Store the trigger in a volatile pending field here
+ * and consume it at the start of system_fsm_run, so every transition happens in the main loop. */
 void system_fsm_post_trigger(struct SystemFsm *self, enum SystemFsmTrigger trigger) {
     if (self == NULL) {
         return;
@@ -197,7 +225,20 @@ static void prv_routine_waiting(void *data) {
 }
 
 static void prv_routine_listening(void *data) {
-    /* do nothing */
+    struct SystemFsm *self = data;
+    assert(self != NULL);
+    if (!int_system_fsm_has_passed_ms_and_update(self->get_tick(), &self->listening.last_sample_ms, SYSTEM_FSM_LISTENING_PERIOD_MS)) {
+        return;
+    }
+    struct SystemFsmReading reading;
+    self->read_sensors(&reading);
+    self->print_sensors(&reading);
+
+    const float difference_celsius = reading.ntc_celsius - reading.pot_celsius;
+    const uint8_t duty_percent = prv_difference_to_duty_percent(difference_celsius, SYSTEM_FSM_LISTENING_THRESHOLD_CELSIUS);
+    self->leds->set_duty(SYSTEM_FSM_LED_EXTERNAL, duty_percent);
+
+    prv_listening_check_warning(self, difference_celsius);
 }
 
 static void prv_routine_warning(void *data) {
@@ -222,7 +263,14 @@ static void prv_enter_waiting(void *data) {
 }
 
 static void prv_enter_listening(void *data) {
+    struct SystemFsm *self = data;
+    assert(self != NULL);
+    /* restart the sampling period: a stale timestamp from a previous visit would fire at once */
+    self->listening.last_sample_ms = self->get_tick();
+    /* the warning window must not carry over from a previous visit (e.g. through pause) */
+    self->listening.is_above = false;
     int_system_fsm_cli_disable();
+    int_system_fsm_leds_apply(self->leds, SYSTEM_FSM_STATE_LISTENING);
 }
 
 static void prv_enter_warning(void *data) {
@@ -243,8 +291,47 @@ static void prv_trigger_go_listening(struct SystemFsm *self) {
     prv_transition_to(self, SYSTEM_FSM_STATE_LISTENING);
 }
 
+static void prv_trigger_go_paused(struct SystemFsm *self) {
+    prv_transition_to(self, SYSTEM_FSM_STATE_PAUSED);
+}
+
 static void prv_transition_to(struct SystemFsm *self, enum SystemFsmState state) {
     assert(self != NULL);
     const enum FSMReturnCode result = fsm_api_transition_to(&self->handler, state);
     assert(result == FSM_RC_OK);
+}
+
+static inline uint8_t prv_difference_to_duty_percent(float difference_celsius, float threshold_celsius) {
+    assert(threshold_celsius > 0.0f);
+    /* linear: 0 % at no difference, 100 % at the threshold, clamped outside */
+    /* TODO: a NaN difference fails both checks and reaches the uint8_t cast, which is undefined
+     * behaviour. Write the first check as !(difference_celsius > 0.0f) so NaN maps to 0 %. */
+    if (difference_celsius <= 0.0f) {
+        return 0U;
+    }
+    if (difference_celsius >= threshold_celsius) {
+        return SYSTEM_FSM_DUTY_MAX_PERCENT;
+    }
+    return (uint8_t)(difference_celsius * SYSTEM_FSM_DUTY_MAX_PERCENT / threshold_celsius);
+}
+
+static inline void prv_listening_check_warning(struct SystemFsm *self, float difference_celsius) {
+    assert(self != NULL);
+    struct SystemFsmListening *listening = &self->listening;
+    /* the 5 s must be continuous: one sample at or below the threshold restarts the window */
+    /* TODO: a NaN difference fails this check and counts as above the threshold; decide whether
+     * it should, and if not write it as !(difference_celsius > SYSTEM_FSM_LISTENING_THRESHOLD_CELSIUS). */
+    if (difference_celsius <= SYSTEM_FSM_LISTENING_THRESHOLD_CELSIUS) {
+        listening->is_above = false;
+        return;
+    }
+    const uint32_t now_ms = self->get_tick();
+    if (!listening->is_above) {
+        listening->is_above = true;
+        listening->above_since_ms = now_ms;
+        return;
+    }
+    if (int_system_fsm_has_passed_ms(now_ms, listening->above_since_ms, SYSTEM_FSM_LISTENING_WARNING_MS)) {
+        prv_transition_to(self, SYSTEM_FSM_STATE_WARNING);
+    }
 }

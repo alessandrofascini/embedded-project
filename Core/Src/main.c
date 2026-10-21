@@ -127,10 +127,9 @@ static uint32_t prv_min(uint32_t a, uint32_t b);
 
 static void prv_led_set_blink(enum SystemFsmLed led, uint16_t period_ms, uint8_t duty_percent);
 static void prv_led_set_breathing(enum SystemFsmLed led, uint16_t period_ms);
+static void prv_led_set_duty(enum SystemFsmLed led, uint8_t duty_percent);
 static inline void prv_led_stop_breathing(enum SystemFsmLed led);
 static void prv_led_breathing_step(enum SystemFsmLed led);
-
-static void prv_state_streaming(void);
 
 static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]);
 static enum CommandHandlerStatus prv_command_raw(int argc, char *argv[]);
@@ -139,6 +138,8 @@ static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]);
 static enum CommandHandlerStatus prv_command_run(int argc, char *argv[]);
 
 static enum SystemFsmFatalErrorCode prv_port_self_test(void);
+static void prv_port_read_sensors(struct SystemFsmReading *reading);
+static void prv_port_print_sensors(const struct SystemFsmReading *reading);
 
 /* USER CODE END PFP */
 
@@ -206,12 +207,15 @@ int main(void) {
     static const struct SystemFsmLeds system_fsm_leds = {
         .set_blink = prv_led_set_blink,
         .set_breathing = prv_led_set_breathing,
+        .set_duty = prv_led_set_duty,
     };
 
     system_fsm = (struct SystemFsm){
         .cli = &system_fsm_cli,
         .leds = &system_fsm_leds,
         .self_test = prv_port_self_test,
+        .read_sensors = prv_port_read_sensors,
+        .print_sensors = prv_port_print_sensors,
         .get_tick = HAL_GetTick,
     };
 
@@ -386,6 +390,26 @@ static void prv_led_set_breathing(enum SystemFsmLed led, uint16_t period_ms) {
     __HAL_TIM_ENABLE_IT(hw->timer, TIM_IT_UPDATE);
 }
 
+static void prv_led_set_duty(enum SystemFsmLed led, uint8_t duty_percent) {
+    assert(led < SYSTEM_FSM_LED_COUNT);
+    assert(duty_percent <= LED_DUTY_MAX_PERCENT);
+    if (led >= SYSTEM_FSM_LED_COUNT) {
+        return;
+    }
+    const struct LedHardware *hw = &main_leds[led];
+    const uint32_t duty = prv_min(duty_percent, LED_DUTY_MAX_PERCENT);
+
+    /* nothing may change the duty on its own: only the next call does */
+    prv_led_stop_breathing(led);
+
+    /* same fast carrier as the breathing: the eye sees the duty cycle as brightness */
+    const uint32_t prescaler = HAL_RCC_GetPCLK1Freq() / LED_PWM_TICK_HZ - 1U;
+    __HAL_TIM_SET_PRESCALER(hw->timer, prescaler);
+    __HAL_TIM_SET_AUTORELOAD(hw->timer, LED_PWM_PERIOD_TICKS - 1U);
+    __HAL_TIM_SET_COMPARE(hw->timer, hw->channel, LED_PWM_PERIOD_TICKS * duty / LED_DUTY_MAX_PERCENT);
+    hw->timer->Instance->EGR = TIM_EGR_UG;
+}
+
 static inline void prv_led_stop_breathing(enum SystemFsmLed led) {
     __HAL_TIM_DISABLE_IT(main_leds[led].timer, TIM_IT_UPDATE);
     main_breathing[led].active = false;
@@ -403,19 +427,6 @@ static void prv_led_breathing_step(enum SystemFsmLed led) {
     const uint32_t rising_ms = (phase_ms < half_ms) ? phase_ms : (period_ms - phase_ms);
     const uint32_t duty_ticks = LED_PWM_PERIOD_TICKS * rising_ms / half_ms;
     __HAL_TIM_SET_COMPARE(main_leds[led].timer, main_leds[led].channel, duty_ticks);
-}
-
-static void prv_state_streaming(void) {
-    const uint16_t pot_raw = adc_filter_apply(&pot_filter, dma_buffer[0]);
-    char pot_celsius[FLOAT_STRING_MAX_LENGTH];
-    float_to_string(ntc_raw_adc_to_celsius(&pot, pot_raw), pot_celsius, sizeof(pot_celsius));
-
-    const uint16_t ntc_raw = adc_filter_apply(&ntc_filter, dma_buffer[1]);
-    char ntc_celsius[FLOAT_STRING_MAX_LENGTH];
-    float_to_string(ntc_raw_adc_to_celsius(&ntc, ntc_raw), ntc_celsius, sizeof(ntc_celsius));
-
-    printf("POT_RAW:%d,POT_C:%s,NTC_RAW:%d,NTC_C:%s\r\n", pot_raw, pot_celsius, ntc_raw, ntc_celsius);
-    HAL_Delay(100);
 }
 
 static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]) {
@@ -486,6 +497,26 @@ static enum SystemFsmFatalErrorCode prv_port_self_test(void) {
         return SYSTEM_FSM_FATAL_ERROR_NTC_OUT_OF_RANGE;
     }
     return SYSTEM_FSM_FATAL_ERROR_NONE;
+}
+
+static void prv_port_read_sensors(struct SystemFsmReading *reading) {
+    assert(reading != NULL);
+    /* the DMA keeps the buffer fresh: take the latest conversion through the active filters */
+    reading->pot_raw = adc_filter_apply(&pot_filter, dma_buffer[0]);
+    reading->pot_celsius = ntc_raw_adc_to_celsius(&pot, reading->pot_raw);
+    reading->ntc_raw = adc_filter_apply(&ntc_filter, dma_buffer[1]);
+    reading->ntc_celsius = ntc_raw_adc_to_celsius(&ntc, reading->ntc_raw);
+}
+
+static void prv_port_print_sensors(const struct SystemFsmReading *reading) {
+    assert(reading != NULL);
+    char pot_celsius[FLOAT_STRING_MAX_LENGTH];
+    float_to_string(reading->pot_celsius, pot_celsius, sizeof(pot_celsius));
+
+    char ntc_celsius[FLOAT_STRING_MAX_LENGTH];
+    float_to_string(reading->ntc_celsius, ntc_celsius, sizeof(ntc_celsius));
+
+    printf("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", reading->pot_raw, pot_celsius, reading->ntc_raw, ntc_celsius);
 }
 
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin) {

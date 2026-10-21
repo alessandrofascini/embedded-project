@@ -36,6 +36,17 @@ enum SystemFsmLed {
 
 typedef void (*system_fsm_led_set_blink)(enum SystemFsmLed led, uint16_t period_ms, uint8_t duty_percent);
 typedef void (*system_fsm_led_set_breathing)(enum SystemFsmLed led, uint16_t period_ms);
+typedef void (*system_fsm_led_set_duty)(enum SystemFsmLed led, uint8_t duty_percent);
+
+struct SystemFsmReading {
+    uint16_t pot_raw;
+    float pot_celsius;
+    uint16_t ntc_raw;
+    float ntc_celsius;
+};
+
+typedef void (*system_fsm_read_sensors)(struct SystemFsmReading *reading);
+typedef void (*system_fsm_print_sensors)(const struct SystemFsmReading *reading);
 
 enum SystemFsmStatus {
     SYSTEM_FSM_OK,
@@ -46,6 +57,8 @@ enum SystemFsmStatus {
     SYSTEM_FSM_GET_TICK_IS_NULL,
     SYSTEM_FSM_CLI_IS_NULL,
     SYSTEM_FSM_LEDS_IS_NULL,
+    SYSTEM_FSM_READ_SENSORS_IS_NULL,
+    SYSTEM_FSM_PRINT_SENSORS_IS_NULL,
 };
 
 enum SystemFsmState {
@@ -73,6 +86,7 @@ struct SystemFsmCli {
 struct SystemFsmLeds {
     system_fsm_led_set_blink set_blink;
     system_fsm_led_set_breathing set_breathing;
+    system_fsm_led_set_duty set_duty;
 };
 
 struct SystemFsmFatal {
@@ -80,11 +94,20 @@ struct SystemFsmFatal {
     uint32_t last_message_ms;
 };
 
+struct SystemFsmListening {
+    uint32_t last_sample_ms;
+    bool is_above;           /* NTC - POT is above the threshold */
+    uint32_t above_since_ms; /* valid only while is_above */
+};
+
 struct SystemFsm {
     struct FSMHandler handler;
     system_fsm_self_test self_test;
     const struct SystemFsmCli *cli;
     const struct SystemFsmLeds *leds;
+    system_fsm_read_sensors read_sensors;
+    system_fsm_print_sensors print_sensors;
+    struct SystemFsmListening listening;
     struct SystemFsmFatal fatal;
     system_fsm_get_tick get_tick;
 };
