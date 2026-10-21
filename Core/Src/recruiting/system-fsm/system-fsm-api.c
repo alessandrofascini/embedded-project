@@ -29,6 +29,11 @@ static void prv_enter_warning(void *data);
 static void prv_enter_paused(void *data);
 static void prv_enter_fatal(void *data);
 
+typedef void (*system_fsm_trigger_handler)(struct SystemFsm *self);
+
+static void prv_trigger_go_listening(struct SystemFsm *self);
+static void prv_transition_to(struct SystemFsm *self, enum SystemFsmState state);
+
 static const struct Transition prv_post_transitions[] = {
     { .to = SYSTEM_FSM_STATE_WAITING, .function = prv_enter_waiting },
     { .to = SYSTEM_FSM_STATE_FATAL, .function = prv_enter_fatal },
@@ -100,6 +105,14 @@ static const struct State prv_states[SYSTEM_FSM_STATE_COUNT] = {
     },
 };
 
+/* what each trigger does in each state: a missing entry is NULL, the trigger is ignored there */
+static const system_fsm_trigger_handler prv_trigger_handlers[SYSTEM_FSM_STATE_COUNT][SYSTEM_FSM_TRIGGER_COUNT] = {
+    [SYSTEM_FSM_STATE_WAITING] = {
+        [SYSTEM_FSM_TRIGGER_BUTTON_CLICK] = prv_trigger_go_listening,
+        [SYSTEM_FSM_TRIGGER_RUN_COMMAND] = prv_trigger_go_listening,
+    }
+};
+
 enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
     if (self == NULL) {
         return SYSTEM_FSM_SELF_IS_NULL;
@@ -149,6 +162,20 @@ enum SystemFsmStatus system_fsm_run(struct SystemFsm *self) {
 enum SystemFsmState system_fsm_get_state(const struct SystemFsm *self) {
     assert(self != NULL);
     return fsm_api_get_state(&self->handler);
+}
+
+void system_fsm_post_trigger(struct SystemFsm *self, enum SystemFsmTrigger trigger) {
+    if (self == NULL) {
+        return;
+    }
+    const enum SystemFsmState state = system_fsm_get_state(self);
+    if (state >= SYSTEM_FSM_STATE_COUNT || trigger >= SYSTEM_FSM_TRIGGER_COUNT) {
+        return;
+    }
+    const system_fsm_trigger_handler handler = prv_trigger_handlers[state][trigger];
+    if (handler != NULL) {
+        handler(self);
+    }
 }
 
 static void prv_routine_post(void *data) {
@@ -210,4 +237,14 @@ static void prv_enter_paused(void *data) {
 
 static void prv_enter_fatal(void *data) {
     int_system_fsm_cli_disable();
+}
+
+static void prv_trigger_go_listening(struct SystemFsm *self) {
+    prv_transition_to(self, SYSTEM_FSM_STATE_LISTENING);
+}
+
+static void prv_transition_to(struct SystemFsm *self, enum SystemFsmState state) {
+    assert(self != NULL);
+    const enum FSMReturnCode result = fsm_api_transition_to(&self->handler, state);
+    assert(result == FSM_RC_OK);
 }

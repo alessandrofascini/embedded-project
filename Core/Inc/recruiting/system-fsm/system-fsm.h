@@ -59,6 +59,12 @@ enum SystemFsmState {
     SYSTEM_FSM_STATE_UNKNOWN,
 };
 
+enum SystemFsmTrigger {
+    SYSTEM_FSM_TRIGGER_BUTTON_CLICK,
+    SYSTEM_FSM_TRIGGER_RUN_COMMAND,
+    SYSTEM_FSM_TRIGGER_COUNT,
+};
+
 struct SystemFsmCli {
     system_fsm_print_cli print;
     system_fsm_reset_cli reset;

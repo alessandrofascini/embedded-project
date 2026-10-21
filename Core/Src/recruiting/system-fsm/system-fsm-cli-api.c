@@ -17,7 +17,8 @@
 /* read by the UART ISR through system_fsm_is_cli_enabled() */
 static volatile bool system_fsm_cli_status = SYSTEM_FSM_CLI_STATUS_OFF;
 
-bool system_fsm_is_cli_enabled(void) {
+bool system_fsm_is_cli_enabled(const struct SystemFsm *self) {
+    assert(self != NULL);
     return system_fsm_cli_status;
 }
 

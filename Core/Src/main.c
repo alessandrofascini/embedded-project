@@ -81,6 +81,8 @@ static_assert(LED_BREATHING_STEP_MS >= 1U, "breathing step must be at least 1 ms
 static uint8_t rx_byte;
 static volatile uint32_t adc_conversion_count;
 
+static struct SystemFsm system_fsm;
+
 static struct Cli cli;
 
 /* dma_buffer[0] = POT (channel 0); dma_buffer[1] = NTC (channel 1) */
@@ -134,6 +136,7 @@ static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]);
 static enum CommandHandlerStatus prv_command_raw(int argc, char *argv[]);
 static enum CommandHandlerStatus prv_command_avg(int argc, char *argv[]);
 static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]);
+static enum CommandHandlerStatus prv_command_run(int argc, char *argv[]);
 
 static enum SystemFsmFatalErrorCode prv_port_self_test(void);
 
@@ -184,6 +187,7 @@ int main(void) {
         { "raw", prv_command_raw },
         { "avg", prv_command_avg },
         { "noise", prv_command_noise },
+        { "run", prv_command_run },
     };
     const size_t cli_commands_length = sizeof(cli_commands) / sizeof(cli_commands[0]);
 
@@ -204,7 +208,7 @@ int main(void) {
         .set_breathing = prv_led_set_breathing,
     };
 
-    static struct SystemFsm system_fsm = (struct SystemFsm){
+    system_fsm = (struct SystemFsm){
         .cli = &system_fsm_cli,
         .leds = &system_fsm_leds,
         .self_test = prv_port_self_test,
@@ -420,6 +424,7 @@ static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]) {
     printf("  raw   - Remove all filters\r\n");
     printf("  avg   - Add the 150-sample moving average filter\r\n");
     printf("  noise - Add random noise injection\r\n");
+    printf("  run   - Start streaming the sensor readings\r\n");
     printf("Filters stack: avg and noise can be active together.\r\n");
     return COMMAND_HANDLER_OK;
 }
@@ -442,6 +447,11 @@ static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]) {
     adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_ADD_NOISE);
     adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_ADD_NOISE);
     printf("noise injection enabled\r\n");
+    return COMMAND_HANDLER_OK;
+}
+
+static enum CommandHandlerStatus prv_command_run(int argc, char *argv[]) {
+    system_fsm_post_trigger(&system_fsm, SYSTEM_FSM_TRIGGER_RUN_COMMAND);
     return COMMAND_HANDLER_OK;
 }
 
@@ -482,7 +492,7 @@ void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin) {
     if (GPIO_Pin != BTN_Pin) {
         return;
     }
-    /* TODO: report the press to the system FSM */
+    system_fsm_post_trigger(&system_fsm, SYSTEM_FSM_TRIGGER_BUTTON_CLICK);
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
@@ -490,7 +500,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart != &huart2) {
         return;
     }
-    if (system_fsm_is_cli_enabled()) {
+    /* TODO: think better about this part. */
+    if (system_fsm_is_cli_enabled(&system_fsm)) {
         cli_feed(&cli, rx_byte);
     }
 }

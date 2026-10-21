@@ -16,6 +16,8 @@ enum SystemFsmStatus system_fsm_run(struct SystemFsm *self);
 
 enum SystemFsmState system_fsm_get_state(const struct SystemFsm *self);
 
-bool system_fsm_is_cli_enabled(void);
+bool system_fsm_is_cli_enabled(const struct SystemFsm *self);
+
+void system_fsm_post_trigger(struct SystemFsm *self, enum SystemFsmTrigger trigger);
 
 #endif
