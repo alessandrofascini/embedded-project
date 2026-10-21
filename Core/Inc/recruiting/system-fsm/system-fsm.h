@@ -48,7 +48,6 @@ struct SystemFsmReading {
     float ntc_celsius;
 };
 
-typedef void (*system_fsm_read_sensors)(struct SystemFsmReading *reading);
 typedef void (*system_fsm_read_raw)(uint16_t *pot_raw, uint16_t *ntc_raw);
 
 struct SystemFsmConfig {
@@ -68,7 +67,6 @@ enum SystemFsmStatus {
     SYSTEM_FSM_GET_TICK_IS_NULL,
     SYSTEM_FSM_CLI_IS_NULL,
     SYSTEM_FSM_LEDS_IS_NULL,
-    SYSTEM_FSM_READ_SENSORS_IS_NULL,
     SYSTEM_FSM_PRINT_IS_NULL,
     SYSTEM_FSM_RESET_MCU_IS_NULL,
     SYSTEM_FSM_READ_RAW_IS_NULL,
@@ -131,7 +129,6 @@ struct SystemFsm {
     system_fsm_self_test self_test;
     const struct SystemFsmCli *cli;
     const struct SystemFsmLeds *leds;
-    system_fsm_read_sensors read_sensors;
     system_fsm_read_raw read_raw;
     system_fsm_print print;
     system_fsm_reset_mcu reset_mcu;

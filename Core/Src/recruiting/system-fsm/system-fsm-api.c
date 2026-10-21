@@ -57,6 +57,7 @@ static void prv_transition_to(struct SystemFsm *self, enum SystemFsmState state)
 static inline uint8_t prv_difference_to_duty_percent(float difference_celsius, float threshold_celsius);
 static inline void prv_listening_check_warning(struct SystemFsm *self, float difference_celsius);
 static const char *prv_format_celsius(float celsius, char *buffer, uint16_t buffer_size);
+static inline void prv_read_sensors(struct SystemFsm *self, struct SystemFsmReading *reading);
 static void prv_print_reading(const struct SystemFsm *self, const struct SystemFsmReading *reading);
 static inline enum SystemFsmStatus prv_nested_status(enum SystemFsmStatus base, int code);
 
@@ -174,8 +175,8 @@ enum SystemFsmStatus system_fsm_init(struct SystemFsm *self, const struct System
     assert(self->leds->set_breathing != NULL);
     assert(self->leds->set_duty != NULL);
 
-    if (self->read_sensors == NULL) {
-        return SYSTEM_FSM_READ_SENSORS_IS_NULL;
+    if (self->read_raw == NULL) {
+        return SYSTEM_FSM_READ_RAW_IS_NULL;
     }
     if (self->print == NULL) {
         return SYSTEM_FSM_PRINT_IS_NULL;
@@ -279,7 +280,7 @@ static void prv_routine_listening(void *data) {
         return;
     }
     struct SystemFsmReading reading;
-    self->read_sensors(&reading);
+    prv_read_sensors(self, &reading);
     prv_print_reading(self, &reading);
 
     const float difference_celsius = reading.ntc_celsius - reading.pot_celsius;
@@ -299,7 +300,7 @@ static void prv_routine_warning(void *data) {
     /* sensor reading stays on: keep streaming the readings as in listening */
     if (int_system_fsm_has_passed_ms_and_update(self->get_tick(), &self->warning.last_sample_ms, SYSTEM_FSM_WARNING_SAMPLE_PERIOD_MS)) {
         struct SystemFsmReading reading;
-        self->read_sensors(&reading);
+        prv_read_sensors(self, &reading);
         prv_print_reading(self, &reading);
     }
     if (int_system_fsm_has_passed_ms_and_update(self->get_tick(), &self->warning.last_message_ms, SYSTEM_FSM_WARNING_MESSAGE_PERIOD_MS)) {
@@ -434,13 +435,27 @@ static const char *prv_format_celsius(float celsius, char *buffer, uint16_t buff
     return buffer;
 }
 
+static inline void prv_read_sensors(struct SystemFsm *self, struct SystemFsmReading *reading) {
+    assert(self != NULL && reading != NULL);
+    uint16_t pot_raw, ntc_raw;
+    self->read_raw(&pot_raw, &ntc_raw);
+    /* the latest conversion through the active filters, then into degrees */
+    reading->pot_raw = adc_filter_apply(&self->pot_filter, pot_raw);
+    reading->pot_celsius = ntc_raw_adc_to_celsius(&self->pot, reading->pot_raw);
+    reading->ntc_raw = adc_filter_apply(&self->ntc_filter, ntc_raw);
+    reading->ntc_celsius = ntc_raw_adc_to_celsius(&self->ntc, reading->ntc_raw);
+}
+
 static void prv_print_reading(const struct SystemFsm *self, const struct SystemFsmReading *reading) {
     assert(self != NULL && reading != NULL);
+
     char pot_buffer[SYSTEM_FSM_CELSIUS_STRING_LENGTH];
+    const char *pot_celsius_str = prv_format_celsius(reading->pot_celsius, pot_buffer, sizeof(pot_buffer));
+
     char ntc_buffer[SYSTEM_FSM_CELSIUS_STRING_LENGTH];
-    const char *pot_celsius = prv_format_celsius(reading->pot_celsius, pot_buffer, sizeof(pot_buffer));
-    const char *ntc_celsius = prv_format_celsius(reading->ntc_celsius, ntc_buffer, sizeof(ntc_buffer));
-    self->print("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", reading->pot_raw, pot_celsius, reading->ntc_raw, ntc_celsius);
+    const char *ntc_celsius_str = prv_format_celsius(reading->ntc_celsius, ntc_buffer, sizeof(ntc_buffer));
+
+    self->print("POT_RAW:%u,POT_C:%s,NTC_RAW:%u,NTC_C:%s\r\n", reading->pot_raw, pot_celsius_str, reading->ntc_raw, ntc_celsius_str);
 }
 
 static inline enum SystemFsmStatus prv_nested_status(enum SystemFsmStatus base, int code) {

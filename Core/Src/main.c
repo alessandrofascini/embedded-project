@@ -29,7 +29,6 @@
 #include <assert.h>
 #include "system-fsm-api.h"
 #include "adc-filter-api.h"
-#include "ntc-api.h"
 #include "cli-api.h"
 #include "serial-print-api.h"
 /* USER CODE END Includes */
@@ -77,14 +76,6 @@ static struct Cli cli;
 
 /* dma_buffer[0] = POT (channel 0); dma_buffer[1] = NTC (channel 1) */
 static uint16_t dma_buffer[DMA_BUFFER_SIZE];
-
-/*! Potentiometer instances */
-static struct AdcFilter pot_filter;
-static struct Ntc pot;
-
-/*! NTC instances */
-static struct AdcFilter ntc_filter;
-static struct Ntc ntc;
 
 static const struct SystemFsmConfig main_fsm_config = {
     .pot = {
@@ -154,7 +145,7 @@ static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]);
 static enum CommandHandlerStatus prv_command_run(int argc, char *argv[]);
 
 static enum SystemFsmFatalErrorCode prv_port_self_test(void);
-static void prv_port_read_sensors(struct SystemFsmReading *reading);
+static void prv_port_read_raw(uint16_t *pot_raw, uint16_t *ntc_raw);
 
 static inline bool prv_button_hold_update(bool is_pressed, uint32_t now_ms);
 
@@ -234,7 +225,7 @@ int main(void) {
         .cli = &system_fsm_cli,
         .leds = &system_fsm_leds,
         .self_test = prv_port_self_test,
-        .read_sensors = prv_port_read_sensors,
+        .read_raw = prv_port_read_raw,
         .print = serial_print,
         .reset_mcu = NVIC_SystemReset,
         .get_tick = HAL_GetTick,
@@ -245,12 +236,6 @@ int main(void) {
         serial_print("[FATAL] system_fsm_init failed: %d\r\n", fsm_status);
         Error_Handler();
     }
-
-    /* TODO: handle initialization errors */
-    adc_filter_init(&pot_filter);
-    ntc_init(&pot, &main_fsm_config.pot);
-    adc_filter_init(&ntc_filter);
-    ntc_init(&ntc, &main_fsm_config.ntc);
 
     /* USER CODE END 2 */
 
@@ -474,22 +459,22 @@ static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]) {
 }
 
 static enum CommandHandlerStatus prv_command_raw(int argc, char *argv[]) {
-    adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_CLEAR);
-    adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_CLEAR);
+    adc_filter_handle_event(&system_fsm.pot_filter, ADC_FILTER_EVENT_CLEAR);
+    adc_filter_handle_event(&system_fsm.ntc_filter, ADC_FILTER_EVENT_CLEAR);
     serial_print("removed all the filters applied\r\n");
     return COMMAND_HANDLER_OK;
 }
 
 static enum CommandHandlerStatus prv_command_avg(int argc, char *argv[]) {
-    adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_ADD_AVERAGE);
-    adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_ADD_AVERAGE);
+    adc_filter_handle_event(&system_fsm.pot_filter, ADC_FILTER_EVENT_ADD_AVERAGE);
+    adc_filter_handle_event(&system_fsm.ntc_filter, ADC_FILTER_EVENT_ADD_AVERAGE);
     serial_print("moving average filtering enabled\r\n");
     return COMMAND_HANDLER_OK;
 }
 
 static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]) {
-    adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_ADD_NOISE);
-    adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_ADD_NOISE);
+    adc_filter_handle_event(&system_fsm.pot_filter, ADC_FILTER_EVENT_ADD_NOISE);
+    adc_filter_handle_event(&system_fsm.ntc_filter, ADC_FILTER_EVENT_ADD_NOISE);
     serial_print("noise injection enabled\r\n");
     return COMMAND_HANDLER_OK;
 }
@@ -532,13 +517,11 @@ static enum SystemFsmFatalErrorCode prv_port_self_test(void) {
     return SYSTEM_FSM_FATAL_ERROR_NONE;
 }
 
-static void prv_port_read_sensors(struct SystemFsmReading *reading) {
-    assert(reading != NULL);
-    /* the DMA keeps the buffer fresh: take the latest conversion through the active filters */
-    reading->pot_raw = adc_filter_apply(&pot_filter, dma_buffer[0]);
-    reading->pot_celsius = ntc_raw_adc_to_celsius(&pot, reading->pot_raw);
-    reading->ntc_raw = adc_filter_apply(&ntc_filter, dma_buffer[1]);
-    reading->ntc_celsius = ntc_raw_adc_to_celsius(&ntc, reading->ntc_raw);
+static void prv_port_read_raw(uint16_t *pot_raw, uint16_t *ntc_raw) {
+    assert(pot_raw != NULL && ntc_raw != NULL);
+    /* the DMA keeps the buffer fresh: hand over the latest conversion, the FSM filters it */
+    *pot_raw = dma_buffer[0];
+    *ntc_raw = dma_buffer[1];
 }
 
 /* returns true once per press, when it has been held for BUTTON_HOLD_MS */
