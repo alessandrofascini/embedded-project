@@ -126,6 +126,10 @@ static const system_fsm_trigger_handler prv_trigger_handlers[SYSTEM_FSM_STATE_CO
     [SYSTEM_FSM_STATE_LISTENING] = {
         [SYSTEM_FSM_TRIGGER_BUTTON_CLICK] = prv_trigger_go_paused,
     },
+    [SYSTEM_FSM_STATE_PAUSED] = {
+        [SYSTEM_FSM_TRIGGER_BUTTON_CLICK] = prv_trigger_go_listening,
+        [SYSTEM_FSM_TRIGGER_RUN_COMMAND] = prv_trigger_go_listening,
+    },
 };
 
 enum SystemFsmStatus system_fsm_init(struct SystemFsm *self) {
@@ -246,7 +250,9 @@ static void prv_routine_warning(void *data) {
 }
 
 static void prv_routine_paused(void *data) {
-    /* do nothing */
+    struct SystemFsm *self = data;
+    assert(self != NULL && self->cli != NULL);
+    self->cli->print();
 }
 
 static void prv_routine_fatal(void *data) {
@@ -281,6 +287,7 @@ static void prv_enter_paused(void *data) {
     const struct SystemFsm *self = data;
     assert(self != NULL);
     int_system_fsm_cli_enable(self->cli);
+    int_system_fsm_leds_apply(self->leds, SYSTEM_FSM_STATE_PAUSED);
 }
 
 static void prv_enter_fatal(void *data) {
