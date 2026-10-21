@@ -400,11 +400,11 @@ static void prv_transition_to(struct SystemFsm *self, enum SystemFsmState state)
 }
 
 static inline uint8_t prv_difference_to_duty_percent(float difference_celsius, float threshold_celsius) {
-    assert(threshold_celsius > 0.0f);
+    assert(threshold_celsius > 0.0F);
     /* linear: 0 % at no difference, 100 % at the threshold, clamped outside */
     /* TODO: a NaN difference fails both checks and reaches the uint8_t cast, which is undefined
-     * behaviour. Write the first check as !(difference_celsius > 0.0f) so NaN maps to 0 %. */
-    if (difference_celsius <= 0.0f) {
+     * behaviour. Write the first check as !(difference_celsius > 0.0F) so NaN maps to 0 %. */
+    if (difference_celsius <= 0.0F) {
         return 0U;
     }
     if (difference_celsius >= threshold_celsius) {
@@ -448,7 +448,8 @@ static const char *prv_format_celsius(float celsius, char *buffer, uint16_t buff
 
 static inline void prv_read_sensors(struct SystemFsm *self, struct SystemFsmReading *reading) {
     assert(self != NULL && reading != NULL);
-    uint16_t pot_raw, ntc_raw;
+    uint16_t pot_raw;
+    uint16_t ntc_raw;
     self->read_raw(&pot_raw, &ntc_raw);
     /* the latest conversion through the active filters, then into degrees */
     reading->pot_raw = adc_filter_apply(&self->pot_filter, pot_raw);
