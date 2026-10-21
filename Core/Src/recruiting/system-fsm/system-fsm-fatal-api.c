@@ -5,7 +5,6 @@
  */
 
 #include <stddef.h>
-#include <stdio.h>
 #include <assert.h>
 
 #include "eagletrt-fsm-api.h"
@@ -46,7 +45,7 @@ void int_system_fsm_go_fatal(struct SystemFsm *self, enum SystemFsmFatalErrorCod
 void int_system_fsm_fatal_report(struct SystemFsm *self) {
     assert(self != NULL);
     if (int_system_fsm_has_passed_ms_and_update(self->get_tick(), &self->fatal.last_message_ms, SYSTEM_FSM_FATAL_PERIOD_MS)) {
-        printf("[ERROR] %s (code: %d)\r\n", prv_fatal_message(self->fatal.error), self->fatal.error);
+        self->print("[ERROR] %s (code: %d)\r\n", prv_fatal_message(self->fatal.error), self->fatal.error);
     }
 }
 

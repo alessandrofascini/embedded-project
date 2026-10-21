@@ -47,8 +47,8 @@ struct SystemFsmReading {
 };
 
 typedef void (*system_fsm_read_sensors)(struct SystemFsmReading *reading);
-/* same signature as printf, so printf itself can be plugged in */
-typedef int (*system_fsm_print)(const char *format, ...);
+/* printf-like: main.c plugs in serial_print */
+typedef void (*system_fsm_print)(const char *format, ...);
 typedef void (*system_fsm_reset_mcu)(void);
 
 enum SystemFsmStatus {

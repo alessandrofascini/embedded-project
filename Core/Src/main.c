@@ -26,12 +26,12 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>
 #include <assert.h>
 #include "system-fsm-api.h"
 #include "adc-filter-api.h"
 #include "ntc-api.h"
 #include "cli-api.h"
+#include "serial-print-api.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -129,6 +129,8 @@ static struct ButtonHold main_button_hold;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+static void prv_serial_write_char(char character);
+
 static void prv_cli_print(void);
 static void prv_cli_reset(void);
 
@@ -192,6 +194,9 @@ int main(void) {
     MX_TIM1_Init();
     MX_TIM14_Init();
     /* USER CODE BEGIN 2 */
+    /* first: everything below may print */
+    serial_print_init(prv_serial_write_char);
+
     static char cli_storage[CLI_LINE_MAX_LENGTH];
     static const struct Command cli_commands[] = {
         { "help", prv_command_help },
@@ -204,7 +209,7 @@ int main(void) {
 
     const enum CliInitStatus cli_init_result = cli_init(&cli, cli_storage, sizeof(cli_storage), cli_commands, cli_commands_length);
     if (cli_init_result != CLI_INIT_OK) {
-        printf("[FATAL] cli_init failed: %d\r\n", cli_init_result);
+        serial_print("[FATAL] cli_init failed: %d\r\n", cli_init_result);
         Error_Handler();
     }
 
@@ -225,14 +230,14 @@ int main(void) {
         .leds = &system_fsm_leds,
         .self_test = prv_port_self_test,
         .read_sensors = prv_port_read_sensors,
-        .print = printf,
+        .print = serial_print,
         .reset_mcu = NVIC_SystemReset,
         .get_tick = HAL_GetTick,
     };
 
     enum SystemFsmStatus fsm_status = system_fsm_init(&system_fsm);
     if (fsm_status != SYSTEM_FSM_OK) {
-        printf("[FATAL] system_fsm_init failed: %d\r\n", fsm_status);
+        serial_print("[FATAL] system_fsm_init failed: %d\r\n", fsm_status);
         Error_Handler();
     }
 
@@ -295,19 +300,25 @@ void SystemClock_Config(void) {
 }
 
 /* USER CODE BEGIN 4 */
-int __io_putchar(int ch) {
-    HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-    return ch;
+static void prv_serial_write_char(char character) {
+    HAL_UART_Transmit(&huart2, (uint8_t *)&character, 1, HAL_MAX_DELAY);
+}
+
+/* replaces newlib's version, which pulls in fiprintf and with it the whole stdio */
+void __assert_func(const char *file, int line, const char *function, const char *expression) {
+    serial_print("[ASSERT] %s:%d: %s\r\n", file, line, expression);
+    Error_Handler();
+    /* Error_Handler never returns, but it is not declared noreturn as assert.h requires here */
+    while (1) {
+    }
 }
 
 static void prv_cli_print(void) {
     if (cli.status == CLI_FEED_EMPTY) {
-        printf("> ");
-        fflush(stdout);
+        serial_print("> ");
         cli_set_status_unchanged(&cli);
     } else if (cli.status == CLI_FEED_UPDATED) {
-        printf("\r\n> %s", cli_get_command(&cli));
-        fflush(stdout);
+        serial_print("\r\n> %s", cli_get_command(&cli));
         cli_set_status_unchanged(&cli);
         return;
     }
@@ -315,25 +326,25 @@ static void prv_cli_print(void) {
         assert(cli.status != CLI_FEED_SELF_IS_NULL);
         return;
     }
-    printf("\r\n");
+    serial_print("\r\n");
     const enum CommandExecutorStatus exec_status = cli_execute(&cli);
     switch (exec_status) {
         case COMMAND_EXECUTOR_OK:
             return;
         case COMMAND_EXECUTOR_EMPTY_LINE:
-            printf("empty line\r\n");
+            serial_print("empty line\r\n");
             return;
         case COMMAND_EXECUTOR_TOO_MANY_ARGS:
-            printf("too many args\r\n");
+            serial_print("too many args\r\n");
             return;
         case COMMAND_EXECUTOR_COMMAND_NOT_FOUND:
-            printf("command not found\r\n");
+            serial_print("command not found\r\n");
             return;
         case COMMAND_EXECUTOR_INVALID_ARGS:
             /* The handler has already reported the error to the user */
             return;
         default:
-            printf("[ERROR] cli_execute: should not be here. Error code: %d\r\n", exec_status);
+            serial_print("[ERROR] cli_execute: should not be here. Error code: %d\r\n", exec_status);
             return;
     }
 }
@@ -447,34 +458,34 @@ static void prv_led_breathing_step(enum SystemFsmLed led) {
 }
 
 static enum CommandHandlerStatus prv_command_help(int argc, char *argv[]) {
-    printf("Available commands:\r\n");
-    printf("  help  - Show this help message\r\n");
-    printf("  raw   - Remove all filters\r\n");
-    printf("  avg   - Add the 150-sample moving average filter\r\n");
-    printf("  noise - Add random noise injection\r\n");
-    printf("  run   - Start streaming the sensor readings\r\n");
-    printf("Filters stack: avg and noise can be active together.\r\n");
+    serial_print("Available commands:\r\n");
+    serial_print("  help  - Show this help message\r\n");
+    serial_print("  raw   - Remove all filters\r\n");
+    serial_print("  avg   - Add the 150-sample moving average filter\r\n");
+    serial_print("  noise - Add random noise injection\r\n");
+    serial_print("  run   - Start streaming the sensor readings\r\n");
+    serial_print("Filters stack: avg and noise can be active together.\r\n");
     return COMMAND_HANDLER_OK;
 }
 
 static enum CommandHandlerStatus prv_command_raw(int argc, char *argv[]) {
     adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_CLEAR);
     adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_CLEAR);
-    printf("removed all the filters applied\r\n");
+    serial_print("removed all the filters applied\r\n");
     return COMMAND_HANDLER_OK;
 }
 
 static enum CommandHandlerStatus prv_command_avg(int argc, char *argv[]) {
     adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_ADD_AVERAGE);
     adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_ADD_AVERAGE);
-    printf("moving average filtering enabled\r\n");
+    serial_print("moving average filtering enabled\r\n");
     return COMMAND_HANDLER_OK;
 }
 
 static enum CommandHandlerStatus prv_command_noise(int argc, char *argv[]) {
     adc_filter_handle_event(&pot_filter, ADC_FILTER_EVENT_ADD_NOISE);
     adc_filter_handle_event(&ntc_filter, ADC_FILTER_EVENT_ADD_NOISE);
-    printf("noise injection enabled\r\n");
+    serial_print("noise injection enabled\r\n");
     return COMMAND_HANDLER_OK;
 }
 
